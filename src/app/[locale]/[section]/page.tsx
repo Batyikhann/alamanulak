@@ -6,16 +6,15 @@ import type { Locale, PublicSection } from "@/lib/i18n";
 
 export const instant = false;
 
-const publicSections = ["about", "calendar", "teams", "news", "media", "rules", "horses", "contact"] as const satisfies readonly PublicSection[];
+const publicSections = ["about", "calendar", "teams", "news", "media", "rules", "horses"] as const satisfies readonly PublicSection[];
 
 type SectionPageProps = {
   params: Promise<{ locale: string; section: string }>;
-  searchParams: Promise<{ horse?: string | string[] }>;
 };
 
-export default async function PublicSectionPage({ params, searchParams }: SectionPageProps) {
+export default async function PublicSectionPage({ params }: SectionPageProps) {
   await connection();
-  const [{ locale: localeParam, section: sectionParam }, query] = await Promise.all([params, searchParams]);
+  const { locale: localeParam, section: sectionParam } = await params;
   if (localeParam !== "ky" && localeParam !== "ru") notFound();
   if (!publicSections.includes(sectionParam as PublicSection)) notFound();
 
@@ -24,8 +23,5 @@ export default async function PublicSectionPage({ params, searchParams }: Sectio
   const data = await getPublicData();
   if (!data.settings) notFound();
 
-  const horseValue = query.horse;
-  const contactHorse = typeof horseValue === "string" ? horseValue.slice(0, 120) : undefined;
-
-  return <HomeExperience locale={locale} section={section} contactHorse={contactHorse} {...data} settings={data.settings} />;
+  return <HomeExperience locale={locale} section={section} {...data} settings={data.settings} />;
 }

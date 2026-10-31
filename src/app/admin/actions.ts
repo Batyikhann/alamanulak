@@ -68,7 +68,6 @@ export async function saveSettingsAction(formData: FormData) {
     newsTitleKy: requiredText(180), newsTitleRu: requiredText(180),
     rulesTitleKy: requiredText(180), rulesTitleRu: requiredText(180),
     horsesTitleKy: requiredText(180), horsesTitleRu: requiredText(180),
-    contactTitleKy: requiredText(180), contactTitleRu: requiredText(180),
     contactPhone: requiredText(40),
     contactEmail: z.string().trim().email().max(150),
     addressKy: requiredText(240), addressRu: requiredText(240),
@@ -252,6 +251,7 @@ export async function saveHorseAction(formData: FormData) {
     descriptionKy: requiredText(1200), descriptionRu: requiredText(1200),
     locationKy: requiredText(160), locationRu: requiredText(160),
     price: z.string().trim(), imageUrl: imagePath, categoryId: requiredText(80),
+    sellerName: z.string().trim().max(120), sellerPhone: z.string().trim().max(40).refine((phone) => !phone || /^[+\d][\d\s()-]{4,}$/.test(phone)),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) invalid();
   const price = parsed.data.price ? Number(parsed.data.price) : null;
@@ -268,6 +268,8 @@ export async function saveHorseAction(formData: FormData) {
     price,
     imageUrl: parsed.data.imageUrl,
     categoryId: parsed.data.categoryId,
+    sellerName: parsed.data.sellerName,
+    sellerPhone: parsed.data.sellerPhone,
     published: publishedValue(formData),
   };
   const id = value(formData, "id");

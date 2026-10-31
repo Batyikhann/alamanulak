@@ -144,6 +144,9 @@ model HorseListing {
   locationRu    String
   price         Int?
   imageUrl      String
+  // Shown on the listing: buyers contact the seller directly, not the federation.
+  sellerName    String        @default("")
+  sellerPhone   String        @default("")
   categoryId    String
   category      HorseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   published     Boolean       @default(false)

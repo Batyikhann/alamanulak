@@ -21,6 +21,7 @@ type FederationPageProps = {
   milestones: HistoryMilestone[];
   stats: Stat[];
   crownImage: string;
+  headerImage: string;
 };
 
 function initials(name: string) {
@@ -64,7 +65,7 @@ function SectionHeading({ label, title, children }: { label: string; title: stri
   );
 }
 
-export default function FederationPage({ locale, settings, members, photos, milestones, stats, crownImage }: FederationPageProps) {
+export default function FederationPage({ locale, settings, members, photos, milestones, stats, crownImage, headerImage }: FederationPageProps) {
   const labels = copy[locale];
   const leader = members.find((member) => member.kind === "leader");
   const board = members.filter((member) => member.kind === "board");
@@ -106,15 +107,26 @@ export default function FederationPage({ locale, settings, members, photos, mile
   const openPhoto = lightbox === null ? null : photos[lightbox];
 
   return <>
-    {/* Түндүк: the crown of the yurt holds the mission and the federation's numbers */}
-    <section className="home-row fed-crown" id="about">
-      <div className="section-wrap fed-crown-inner">
-        <div className="fed-crown-copy">
+    {/* Photo header inside the yurt, built like the horse market's: still photo, ornament strip, dark fades */}
+    <div className="hero-shell">
+      <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
+      <section className="market-hero page-hero" id="about">
+        <Image className="market-hero-image" src={headerImage} alt="" width={1672} height={941} priority unoptimized />
+        <div className="section-wrap page-hero-copy">
           <p className="eyebrow">{labels.fedCrownLabel}</p>
           <h1>{text(locale, settings.aboutTitleKy, settings.aboutTitleRu)}</h1>
           <p className="body-large">{text(locale, settings.aboutTextKy, settings.aboutTextRu)}</p>
-          <p className="fed-crown-note">{labels.fedCrownNote}</p>
-          <a className="button button-outline" href={`/${locale}/rules`}>{labels.aboutCta}<ArrowRight size={17} /></a>
+          <a className="button button-accent" href={`/${locale}/rules`}>{labels.aboutCta}<ArrowRight size={17} /></a>
+        </div>
+      </section>
+    </div>
+
+    {/* Түндүк: the crown of the yurt holds the federation's numbers */}
+    <section className="home-row fed-crown">
+      <div className="section-wrap fed-crown-inner">
+        <div className="fed-crown-copy">
+          <p className="eyebrow">{labels.tundukLabel}</p>
+          <h2>{labels.fedCrownNote}</h2>
         </div>
         <div className="fed-crown-art">
           <div className="fed-crown-disc">

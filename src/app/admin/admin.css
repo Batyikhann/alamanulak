@@ -2,9 +2,9 @@
    Layout is an app shell: fixed sidebar, a scrolling editor for one section, and the live site
    preview on the right (components/admin-preview.tsx). */
 :root {
-	--a-bg: #f4f3ef;
+	--a-bg: #f4efe3;
 	--a-surface: #ffffff;
-	--a-sidebar: #12161d;
+	--a-sidebar: #121212;
 	--a-ink: #171a20;
 	--a-muted: #6b7079;
 	--a-faint: #9a9ea6;
@@ -12,7 +12,7 @@
 	--a-line-strong: #cfccc4;
 	--a-accent: #9c7638;
 	--a-accent-soft: #f4ecdc;
-	--a-gold: #c9a35c;
+	--a-gold: #b69a60;
 	--a-danger: #b3261e;
 	--a-danger-soft: #fbeae8;
 	--a-success: #2f7a4f;
@@ -41,7 +41,7 @@ body { background: var(--a-bg); color: var(--a-ink); font-family: var(--a-font);
 .admin-nav a > small { margin-left: auto; color: rgba(255, 255, 255, .38); font-size: 12px; font-variant-numeric: tabular-nums; }
 .admin-nav a > i { min-width: 20px; height: 20px; margin-left: auto; padding: 0 6px; display: grid; place-items: center; border-radius: 10px; background: var(--a-gold); color: var(--a-sidebar); font-size: 11px; font-style: normal; font-weight: 700; }
 .admin-nav a:hover { background: rgba(255, 255, 255, .06); color: #fff; }
-.admin-nav a.is-active { background: rgba(201, 163, 92, .16); color: #fff; }
+.admin-nav a.is-active { background: rgba(182, 154, 96, .16); color: #fff; }
 .admin-nav a.is-active > svg { color: var(--a-gold); }
 .admin-sidebar-bottom { margin-top: auto; padding: 14px 6px 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid rgba(255, 255, 255, .08); }
 .admin-user { min-width: 0; display: flex; align-items: center; gap: 9px; color: var(--a-gold); }

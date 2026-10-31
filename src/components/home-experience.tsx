@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  ArrowUpRight,
   BadgeCheck,
   BookOpen,
   CalendarDays,
@@ -27,13 +26,13 @@ import {
   Store,
   Sun,
   Trophy,
+  User,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import FederationPage from "@/components/federation-page";
 import LocaleSync from "@/components/locale-sync";
 import type {
@@ -79,7 +78,6 @@ type HeroSlide = {
 type HomeExperienceProps = {
   locale: Locale;
   section?: PublicSection;
-  contactHorse?: string;
   settings: SiteSettings;
   articles: LocalizedArticle[];
   tournaments: LocalizedTournament[];
@@ -95,8 +93,17 @@ type HomeExperienceProps = {
 // Yurt, flag and mountains: the federation's "who we are" picture.
 const federationImage = "/images/yurt-flag.jpg";
 
-// Full-width slides need photos at least ~2400px wide; this is the sharpest one on the site.
-const tournamentSlideImage = "/images/hero-horse.jpg";
+// A full field of riders racing across the steppe, for the tournament slides.
+const tournamentSlideImage = "/images/ulak-steppe-race.jpg";
+
+// Riders in red and blue racing for the goat before a full stand: the news slide's background.
+const newsSlideImage = "/images/season-ulak.jpg";
+
+// A black stallion against the Tian Shan: the horse market's slide and page header.
+const marketImage = "/images/argymak-stallion.jpg";
+
+// Inside a yurt, the door open onto the mountains and grazing horses: the federation page header.
+const aboutHeaderImage = "/images/yurt-interior.jpg";
 
 // Riders in kalpaks at sunset, for the "heritage and future" card.
 const legacyImage = "/images/riders-sunset.jpg";
@@ -107,7 +114,7 @@ const monthLabels: Record<Locale, string[]> = {
 };
 
 // Emblem colours follow the team order, which is stable (sorted by name).
-const teamColors = ["#b3262e", "#2d5fa8", "#2f7d4f", "#c9a35c", "#7b3fa0", "#1f7f86"];
+const teamColors = ["#762d36", "#2c4a7a", "#2f5e48", "#9a7f48", "#583a5c", "#2a5c60"];
 
 const priceBands: Record<Exclude<PriceBand, "any">, [number, number]> = {
   low: [0, 800000],
@@ -223,12 +230,10 @@ function HorseCard({
   horse,
   locale,
   labels,
-  onContact,
 }: {
   horse: HorseWithCategory;
   locale: Locale;
   labels: Labels;
-  onContact: (name: string) => void;
 }) {
   const name = text(locale, horse.nameKy, horse.nameRu);
   return (
@@ -244,7 +249,10 @@ function HorseCard({
           <li><MapPin size={15} />{text(locale, horse.locationKy, horse.locationRu)}</li>
         </ul>
         <strong className="horse-price">{moneyLabel(horse.price, locale, labels.som)}</strong>
-        <button className="button button-outline horse-contact" type="button" onClick={() => onContact(name)}>{labels.openSection}</button>
+        {horse.sellerPhone && <div className="horse-seller">
+          {horse.sellerName && <span><User size={14} />{horse.sellerName}</span>}
+          <a className="button button-outline horse-contact" href={`tel:${horse.sellerPhone.replace(/[^+\d]/g, "")}`}><Phone size={15} />{horse.sellerPhone}</a>
+        </div>}
       </div>
     </article>
   );
@@ -253,7 +261,6 @@ function HorseCard({
 export default function HomeExperience({
   locale,
   section,
-  contactHorse,
   settings,
   articles,
   tournaments,
@@ -266,7 +273,6 @@ export default function HomeExperience({
   milestones,
 }: HomeExperienceProps) {
   const labels = copy[locale];
-  const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("all");
   const [activeRegion, setActiveRegion] = useState("all");
   const [activePrice, setActivePrice] = useState<PriceBand>("any");
@@ -277,13 +283,6 @@ export default function HomeExperience({
   const [scrolled, setScrolled] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
   const [slidePaused, setSlidePaused] = useState(false);
-  const [messageDraft, setMessageDraft] = useState(() => {
-    if (!contactHorse) return "";
-    return locale === "ky"
-      ? `Саламатсызбы, «${contactHorse}» жылкысы боюнча маалымат алгым келет.`
-      : `Здравствуйте, хочу узнать подробнее о лошади «${contactHorse}».`;
-  });
-  const [formState, setFormState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const regions = [...new Set(horses.map((horse) => text(locale, horse.locationKy, horse.locationRu)))];
   const visibleHorses = horses.filter((horse) => {
     if (activeCategory !== "all" && horse.categoryId !== activeCategory) return false;
@@ -308,7 +307,6 @@ export default function HomeExperience({
     ["media", labels.navMedia, Images],
     ["rules", labels.navRules, BookOpen],
     ["horses", labels.navHorses, Store],
-    ["contact", labels.navContact, Phone],
   ];
   const stats = [
     { icon: Flag, value: String(foundedYear), label: labels.statFounded },
@@ -335,6 +333,7 @@ export default function HomeExperience({
     { src: settings.heroImageUrl, caption: labels.heroKicker },
     { src: federationImage, caption: labels.country },
     { src: legacyImage, caption: labels.legacyTitle },
+    { src: tournamentSlideImage, caption: labels.homeTournaments },
     ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu) })),
     ...teams.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu) })),
     ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu) })),
@@ -343,7 +342,6 @@ export default function HomeExperience({
   // Home hero slides, in the spirit of a streaming-site carousel: federation, next event, latest news, horse market.
   const nextEvent = upcoming[0];
   const latestArticle = articles[0];
-  const marketHorse = horses[0];
   const heroSlides: HeroSlide[] = [
     {
       key: "federation",
@@ -365,27 +363,36 @@ export default function HomeExperience({
     }] : []),
     ...(latestArticle ? [{
       key: "news",
-      image: latestArticle.imageUrl,
+      image: newsSlideImage,
       kicker: labels.newsLabel,
       title: text(locale, latestArticle.titleKy, latestArticle.titleRu),
       meta: latestArticle.publishedAt ? [numericDate(latestArticle.publishedAt)] : undefined,
       tagline: text(locale, latestArticle.excerptKy, latestArticle.excerptRu),
       primary: { href: `/${locale}/news`, label: labels.readMore },
     }] : []),
-    ...(marketHorse ? [{
+    {
       key: "market",
-      image: marketHorse.imageUrl,
+      image: marketImage,
       kicker: labels.horsesLabel,
-      title: text(locale, marketHorse.nameKy, marketHorse.nameRu),
-      meta: [text(locale, marketHorse.category.nameKy, marketHorse.category.nameRu), text(locale, marketHorse.ageKy, marketHorse.ageRu), moneyLabel(marketHorse.price, locale, labels.som)],
-      tagline: text(locale, marketHorse.descriptionKy, marketHorse.descriptionRu),
+      title: [horsesTitle, ...horsesSubtitle].join(" "),
+      tagline: labels.horsesIntro,
       primary: { href: `/${locale}/horses`, label: labels.toMarket },
-    }] : []),
+    },
   ];
   const activeSlide = heroSlides[slideIndex % heroSlides.length];
 
   function stepSlide(direction: 1 | -1) {
     setSlideIndex((current) => (current % heroSlides.length + direction + heroSlides.length) % heroSlides.length);
+  }
+
+  // Touch screens change slides by swiping; a mostly-horizontal move of 40px or more counts.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  function endSwipe(x: number, y: number) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || heroSlides.length < 2) return;
+    const dx = x - start.x;
+    if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(y - start.y) * 1.5) stepSlide(dx < 0 ? 1 : -1);
   }
 
   useEffect(() => {
@@ -408,44 +415,16 @@ export default function HomeExperience({
     .filter((item, index, list) => list.findIndex((other) => other.src === item.src) === index)
     .slice(0, 6);
 
-  // The home header sits transparently over the hero photo until the page scrolls.
+  // The header sits transparently over the photo header (home slider, horse market) until the page scrolls.
+  const photoHeader = !section || section === "horses" || section === "about";
   useEffect(() => {
-    if (section) return;
+    if (!photoHeader) return;
     const update = () => setScrolled(window.scrollY > 24);
     update();
     window.addEventListener("scroll", update, { passive: true });
     return () => window.removeEventListener("scroll", update);
-  }, [section]);
+  }, [photoHeader]);
 
-  async function submitInquiry(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormState("sending");
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    const response = await fetch("/api/inquiries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: formData.get("name"),
-        phone: formData.get("phone"),
-        email: formData.get("email"),
-        message: formData.get("message"),
-        locale,
-      }),
-    }).catch(() => null);
-
-    if (response?.ok) {
-      setFormState("sent");
-      setMessageDraft("");
-      form.reset();
-    } else {
-      setFormState("error");
-    }
-  }
-
-  function chooseHorse(name: string) {
-    router.push(`/${locale}/contact?horse=${encodeURIComponent(name)}`);
-  }
 
   function resetHorseFilters() {
     setActiveCategory("all");
@@ -456,7 +435,7 @@ export default function HomeExperience({
   return (
     <main className={`site-shell${section ? ` section-page section-page-${section}` : " home-page"}`}>
       <LocaleSync locale={locale} />
-      <header className={`site-header${!section && !scrolled && !menuOpen && !searchOpen ? " is-transparent" : ""}`}>
+      <header className={`site-header${photoHeader && !scrolled && !menuOpen && !searchOpen ? " is-transparent" : ""}`}>
         <a className="brand-lockup" href={`/${locale}`} aria-label={`${settings.brandName} — ${labels.navHome}`}>
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-name">{settings.brandName}</span>
@@ -538,6 +517,8 @@ export default function HomeExperience({
             if (event.key === "ArrowLeft") stepSlide(-1);
             if (event.key === "ArrowRight") stepSlide(1);
           }}
+          onTouchStart={(event) => { swipeStart.current = { x: event.touches[0].clientX, y: event.touches[0].clientY }; }}
+          onTouchEnd={(event) => endSwipe(event.changedTouches[0].clientX, event.changedTouches[0].clientY)}
         >
           {heroSlides.map((slide, index) => (
             <Image key={slide.key} className={`hero-image${slide === activeSlide ? " is-active" : ""}`} src={slide.image} alt="" width={2200} height={1466} priority={index === 0} unoptimized />
@@ -561,19 +542,15 @@ export default function HomeExperience({
               <button key={slide.key} type="button" role="tab" aria-selected={slide === activeSlide} aria-label={`${labels.slideLabel} ${index + 1}: ${slide.title.replace("\n", " ")}`} className={slide === activeSlide ? "is-active" : undefined} onClick={() => setSlideIndex(index)}><span /></button>
             ))}
           </div>}
-          <div className="hero-country">
-            <span><strong>{labels.country}</strong><small>{labels.footerTagline}</small></span>
-            <span className="flag-kg" aria-hidden="true" />
-          </div>
         </section>
         </div>
+
 
         <section className="home-row home-row-lead">
           <div className="lead-row">
             <article className="lead-card about-card">
               <div className="about-card-copy">
-                <p className="eyebrow">{labels.navAbout}</p>
-                <h2>{labels.homeAbout}</h2>
+                <h2>{labels.federationName}</h2>
                 <p>{text(locale, settings.aboutTextKy, settings.aboutTextRu)}</p>
                 <div className="mini-stats">
                   {stats.map(({ icon: Icon, value, label }) => <div key={label}><Icon size={20} /><strong>{value}</strong><span>{label}</span></div>)}
@@ -601,6 +578,7 @@ export default function HomeExperience({
             </div>
 
             <a className="lead-card legacy-card" href={`/${locale}/rules`}>
+              <span className="legacy-ornament" aria-hidden="true" />
               <Image src={legacyImage} alt={text(locale, "Калпак кийген чабандестер тоодо", "Всадники в калпаках в горах")} width={1086} height={1448} unoptimized />
               <span className="legacy-card-copy">
                 <strong>{labels.legacyTitle}</strong>
@@ -657,7 +635,7 @@ export default function HomeExperience({
             </aside>
             {horses.map((horse) => (
               <div className="row-card horse-tile" key={horse.id}>
-                <HorseCard horse={horse} locale={locale} labels={labels} onContact={chooseHorse} />
+                <HorseCard horse={horse} locale={locale} labels={labels} />
               </div>
             ))}
           </RowTrack>
@@ -684,6 +662,7 @@ export default function HomeExperience({
         milestones={milestones}
         stats={[...stats, { icon: Ribbon, value: String(playerCount), label: labels.statPlayers }]}
         crownImage={federationImage}
+        headerImage={aboutHeaderImage}
       />}
 
       {section === "calendar" && <section className="calendar-section section-wrap" id="calendar">
@@ -799,8 +778,10 @@ export default function HomeExperience({
       </section>}
 
       {section === "horses" && <>
+        <div className="hero-shell">
+        <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
         <section className="market-hero">
-          <Image className="hero-image" src={horses[0]?.imageUrl ?? settings.heroImageUrl} alt="" width={2200} height={1466} priority unoptimized />
+          <Image className="market-hero-image" src={marketImage} alt="" width={1672} height={941} priority unoptimized />
           <div className="market-hero-inner section-wrap">
             <div className="market-hero-copy">
               <p className="eyebrow">{labels.horsesLabel}</p>
@@ -808,8 +789,7 @@ export default function HomeExperience({
               {horsesSubtitle.length > 0 && <p className="market-subtitle">{horsesSubtitle.join(" ")}</p>}
               <p className="market-intro">{labels.horsesIntro}</p>
               <div className="hero-actions">
-                <a className="button button-accent" href={`/${locale}/contact`}>{labels.navContact}<ArrowRight size={17} /></a>
-                <a className="text-link" href="#catalog">{labels.browseCatalog}<ArrowRight size={15} /></a>
+                <a className="button button-accent" href="#catalog">{labels.browseCatalog}<ArrowRight size={17} /></a>
               </div>
               <ul className="market-features">
                 {horseFeatures.map(([Icon, label]) => <li key={label}><span><Icon size={20} /></span>{label}</li>)}
@@ -842,6 +822,7 @@ export default function HomeExperience({
             </form>
           </div>
         </section>
+        </div>
 
         <section className="horses-section section-wrap" id="catalog">
           <div className="catalog-toolbar">
@@ -856,41 +837,13 @@ export default function HomeExperience({
           </div>
           <div className="horse-grid">
             {visibleHorses.map((horse) => (
-              <HorseCard key={horse.id} horse={horse} locale={locale} labels={labels} onContact={chooseHorse} />
+              <HorseCard key={horse.id} horse={horse} locale={locale} labels={labels} />
             ))}
           </div>
           {!visibleHorses.length && <p className="empty-note horse-empty">{labels.noHorses}</p>}
         </section>
       </>}
 
-      {section === "contact" && <section className="contact-section section-wrap" id="contact">
-        <div className="contact-layout">
-          <div className="contact-copy">
-            <p className="eyebrow">{labels.contactLabel}</p>
-            <h2>{text(locale, settings.contactTitleKy, settings.contactTitleRu)}</h2>
-            <p>{labels.contactIntro}</p>
-            <div className="contact-links">
-              <p><MapPin size={18} />{text(locale, settings.addressKy, settings.addressRu)}</p>
-              <a href={`tel:${settings.contactPhone}`}><Phone size={18} />{settings.contactPhone}<ArrowUpRight size={14} /></a>
-              <a href={`mailto:${settings.contactEmail}`}><Mail size={18} />{settings.contactEmail}<ArrowUpRight size={14} /></a>
-              {settings.socialUrl && <a href={settings.socialUrl} target="_blank" rel="noreferrer"><MessageCircle size={18} />{labels.social}<ArrowUpRight size={14} /></a>}
-            </div>
-            <span className="contact-art" aria-hidden="true" />
-          </div>
-          <form className="card contact-form" onSubmit={submitInquiry}>
-            <div className="form-two-col">
-              <label>{labels.name}<input name="name" autoComplete="name" required maxLength={100} /></label>
-              <label>{labels.phone}<input name="phone" type="tel" autoComplete="tel" required maxLength={40} /></label>
-            </div>
-            <label>{labels.email}<input name="email" type="email" autoComplete="email" maxLength={150} /></label>
-            <label>{labels.message}<textarea name="message" rows={3} required maxLength={2000} value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} /></label>
-            <div className="form-submit-row">
-              <button className="button button-accent" type="submit" disabled={formState === "sending"}>{formState === "sending" ? "..." : labels.sendMessage}<ArrowRight size={17} /></button>
-              <span className={`form-feedback ${formState === "error" ? "is-error" : ""}`} aria-live="polite">{formState === "sent" ? labels.messageSent : formState === "error" ? labels.messageError : ""}</span>
-            </div>
-          </form>
-        </div>
-      </section>}
 
       <footer className="site-footer">
         <div className="footer-scene" aria-hidden="true" />

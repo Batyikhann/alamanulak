@@ -92,7 +92,7 @@ export type AdminTab = (typeof adminTabs)[number];
 // The public page the preview pane opens for each admin section.
 const previewPaths: Record<AdminTab, string> = {
   overview: "", settings: "", news: "/news", tournaments: "/calendar", teams: "/teams",
-  rules: "/rules", horses: "/horses", federation: "/about", inquiries: "/contact",
+  rules: "/rules", horses: "/horses", federation: "/about", inquiries: "",
 };
 
 const ui = {
@@ -155,6 +155,8 @@ const ui = {
     age: "Жашы",
     location: "Жайгашкан жери",
     price: "Баасы · сом",
+    sellerName: "Сатуучунун аты (кааласаңыз)",
+    sellerPhone: "Сатуучунун телефону (сайтта көрсөтүлөт)",
     category: "Категория",
     noTeams: "Оюнчу кошуудан мурда команда түзүңүз.",
     unread: "Жаңы",
@@ -253,6 +255,8 @@ const ui = {
     age: "Возраст",
     location: "Местонахождение",
     price: "Цена · сом",
+    sellerName: "Имя продавца (по желанию)",
+    sellerPhone: "Телефон продавца (показывается на сайте)",
     category: "Категория",
     noTeams: "Сначала создайте команду, затем добавляйте игроков.",
     unread: "Новое",
@@ -494,7 +498,6 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
                 <Pair field="newsTitle" label={labels.news} ky={data.settings.newsTitleKy} ru={data.settings.newsTitleRu} />
                 <Pair field="rulesTitle" label={labels.rulesSection} ky={data.settings.rulesTitleKy} ru={data.settings.rulesTitleRu} />
                 <Pair field="horsesTitle" label={labels.horses} ky={data.settings.horsesTitleKy} ru={data.settings.horsesTitleRu} />
-                <Pair field="contactTitle" label={labels.inquiries} ky={data.settings.contactTitleKy} ru={data.settings.contactTitleRu} />
               </div>
               <h3 className="admin-subheading">{labels.contact}</h3>
               <div className="admin-form-grid admin-form-grid-three">
@@ -673,6 +676,8 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
                     <Pair field="name" label={labels.name} /><Pair field="age" label={labels.age} />
                     <Pair field="location" label={labels.location} /><Pair field="description" label={labels.description} multiline />
                     <Field name="price" label={labels.price} type="number" required={false} />
+                    <Field name="sellerName" label={labels.sellerName} required={false} />
+                    <Field name="sellerPhone" label={labels.sellerPhone} type="tel" required={false} />
                     <Field name="imageUrl" label={labels.image} />
                     <label className="admin-field">{labels.category}<select name="categoryId" required defaultValue=""><option value="" disabled>—</option>{data.categories.filter((category) => category.active).map((category) => <option value={category.id} key={category.id}>{category.nameKy} / {category.nameRu}</option>)}</select></label>
                   </div>
@@ -686,6 +691,8 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
                     <Pair field="name" label={labels.name} ky={horse.nameKy} ru={horse.nameRu} /><Pair field="age" label={labels.age} ky={horse.ageKy} ru={horse.ageRu} />
                     <Pair field="location" label={labels.location} ky={horse.locationKy} ru={horse.locationRu} /><Pair field="description" label={labels.description} ky={horse.descriptionKy} ru={horse.descriptionRu} multiline />
                     <Field name="price" label={labels.price} type="number" value={horse.price ?? ""} required={false} />
+                    <Field name="sellerName" label={labels.sellerName} value={horse.sellerName} required={false} />
+                    <Field name="sellerPhone" label={labels.sellerPhone} type="tel" value={horse.sellerPhone} required={false} />
                     <Field name="imageUrl" label={labels.image} value={horse.imageUrl} />
                     <label className="admin-field">{labels.category}<select name="categoryId" required defaultValue={horse.categoryId}>{data.categories.map((category) => <option value={category.id} key={category.id}>{category.nameKy} / {category.nameRu}</option>)}</select></label>
                   </div>

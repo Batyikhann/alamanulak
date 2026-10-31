@@ -1,5 +1,5 @@
 export type Locale = "ky" | "ru";
-export type PublicSection = "about" | "calendar" | "teams" | "news" | "media" | "rules" | "horses" | "contact";
+export type PublicSection = "about" | "calendar" | "teams" | "news" | "media" | "rules" | "horses";
 
 export const copy = {
   ky: {
@@ -11,6 +11,7 @@ export const copy = {
     mediaLabel: "Сүрөттөр",
     mediaTitle: "Медиа",
     searchLabel: "Издөө",
+    sponsorsLabel: "Демөөрчүлөр",
     themeLabel: "Жарык же караңгы тема",
     searchPlaceholder: "Жаңылык, турнир, команда же жылкы...",
     noResults: "Эч нерсе табылган жок.",
@@ -37,7 +38,7 @@ export const copy = {
     country: "Кыргызстан",
     statFounded: "Түзүлгөн жылы",
     statTournaments: "Турнирлер",
-    homeAbout: "Биз кимбиз?",
+    federationName: "Аламан-Улак федерациясы",
     homeTournaments: "Турнирлер",
     homeTeams: "Командалар",
     homeMedia: "Медиа",
@@ -80,6 +81,7 @@ export const copy = {
     aboutCta: "Оюндун эрежелери",
     fedCrownLabel: "ФЕДЕРАЦИЯ — БИР БОЗ ҮЙ",
     fedCrownNote: "Түндүк — үйдүн жүрөгү. Биздин максат ушул жерден башталат.",
+    tundukLabel: "ТҮНДҮК",
     uukLabel: "УУК",
     uukTitle: "Федерациянын таянычы",
     uukText: "Уук түндүктү көтөрүп турат. Федерацияны да ушул адамдар көтөрүп турат.",
@@ -145,6 +147,7 @@ export const copy = {
     mediaLabel: "Фотографии",
     mediaTitle: "Медиа",
     searchLabel: "Поиск",
+    sponsorsLabel: "Спонсоры",
     themeLabel: "Светлая или тёмная тема",
     searchPlaceholder: "Новость, турнир, команда или лошадь...",
     noResults: "Ничего не найдено.",
@@ -171,7 +174,7 @@ export const copy = {
     country: "Кыргызстан",
     statFounded: "Год основания",
     statTournaments: "Турниров",
-    homeAbout: "Кто мы?",
+    federationName: "Федерация Аламан-Улак",
     homeTournaments: "Турниры",
     homeTeams: "Команды",
     homeMedia: "Медиа",
@@ -214,6 +217,7 @@ export const copy = {
     aboutCta: "Правила игры",
     fedCrownLabel: "ФЕДЕРАЦИЯ — ОДНА ЮРТА",
     fedCrownNote: "Түндүк — сердце юрты. С него начинается наша цель.",
+    tundukLabel: "ТҮНДҮК",
     uukLabel: "УУК",
     uukTitle: "Опора федерации",
     uukText: "Уук держат түндүк. Федерацию держат эти люди.",
