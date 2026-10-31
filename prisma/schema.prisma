@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminAccount {
+  id               String    @id @default(cuid())
+  username         String    @unique
+  passwordHash     String
+  sessionTokenHash String?
+  sessionExpiresAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model SiteSettings {
+  id           String   @id @default("main")
+  brandName    String   @default("Alaman Ulak")
+  heroTitleKy  String
+  heroTitleRu  String
+  heroTextKy   String
+  heroTextRu   String
+  aboutTitleKy String
+  aboutTitleRu String
+  aboutTextKy  String
+  aboutTextRu  String
+  calendarTitleKy String @default("Кийинки беттештер")
+  calendarTitleRu String @default("Ближайшие матчи")
+  teamTitleKy String @default("Ат үстүндөгү биримдик")
+  teamTitleRu String @default("Единство в седле")
+  newsTitleKy String @default("Акыркы жаңылыктар")
+  newsTitleRu String @default("Последние события")
+  rulesTitleKy String @default("Эреже жана тартип")
+  rulesTitleRu String @default("Правила и порядок")
+  horsesTitleKy String @default("Ат каталогу")
+  horsesTitleRu String @default("Каталог лошадей")
+  contactTitleKy String @default("Сурооңуз барбы?")
+  contactTitleRu String @default("Есть вопрос?")
+  contactPhone String
+  contactEmail String
+  addressKy    String
+  addressRu    String
+  socialUrl    String   @default("")
+  heroImageUrl String
+  updatedAt    DateTime @updatedAt
+}
+
+model NewsArticle {
+  id          String   @id @default(cuid())
+  titleKy     String
+  titleRu     String
+  excerptKy   String
+  excerptRu   String
+  bodyKy      String
+  bodyRu      String
+  imageUrl    String
+  published   Boolean  @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tournament {
+  id              String   @id @default(cuid())
+  titleKy         String
+  titleRu         String
+  locationKy      String
+  locationRu      String
+  startsAt        DateTime
+  endsAt          DateTime
+  resultSummaryKy String   @default("")
+  resultSummaryRu String   @default("")
+  published       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Team {
+  id            String   @id @default(cuid())
+  nameKy        String
+  nameRu        String
+  locationKy    String
+  locationRu    String
+  descriptionKy String
+  descriptionRu String
+  imageUrl      String
+  players       Player[]
+  published     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  name       String
+  positionKy String
+  positionRu String
+  number     Int?
+  bioKy      String
+  bioRu      String
+  imageUrl   String
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  published  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model RuleSection {
+  id        String   @id @default(cuid())
+  titleKy   String
+  titleRu   String
+  bodyKy    String
+  bodyRu    String
+  sortOrder Int      @default(0)
+  published Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model HorseCategory {
+  id        String         @id @default(cuid())
+  nameKy    String
+  nameRu    String
+  sortOrder Int            @default(0)
+  active    Boolean        @default(true)
+  listings  HorseListing[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model HorseListing {
+  id            String        @id @default(cuid())
+  nameKy        String
+  nameRu        String
+  ageKy         String
+  ageRu         String
+  descriptionKy String
+  descriptionRu String
+  locationKy    String
+  locationRu    String
+  price         Int?
+  imageUrl      String
+  categoryId    String
+  category      HorseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  published     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model ContactInquiry {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String   @default("")
+  message   String
+  locale    String   @default("ky")
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// People shown on the "about" page. kind: "leader" sits in the түндүк (one expected),
+// "board" fans out as the уук, "regional" only appears on the map. region is an ISO code
+// from src/lib/kg-regions.ts; any member with a region also shows on the map.
+model FederationMember {
+  id        String   @id @default(cuid())
+  name      String
+  roleKy    String
+  roleRu    String
+  bioKy     String   @default("")
+  bioRu     String   @default("")
+  photoUrl  String   @default("")
+  kind      String   @default("board")
+  region    String   @default("")
+  phone     String   @default("")
+  sortOrder Int      @default(0)
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AboutPhoto {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  captionKy String
+  captionRu String
+  sortOrder Int      @default(0)
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HistoryMilestone {
+  id        String   @id @default(cuid())
+  year      Int
+  titleKy   String
+  titleRu   String
+  textKy    String   @default("")
+  textRu    String   @default("")
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
