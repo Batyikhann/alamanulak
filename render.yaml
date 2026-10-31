@@ -1,0 +1,22 @@
+# Render Blueprint: one web service that redeploys on every push to main.
+# DATABASE_URL (Neon connection string) is entered in the Render dashboard when the
+# Blueprint is created; it is never stored in this file.
+services:
+  - type: web
+    name: alamanulak
+    runtime: node
+    region: frankfurt
+    plan: free
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci && npm run db:deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /ky
+    envVars:
+      - key: NODE_VERSION
+        value: 20.20.2
+      - key: DATABASE_URL
+        sync: false
+      # Required by /admin first-time setup in production; generated once by Render.
+      - key: ADMIN_SETUP_KEY
+        generateValue: true
