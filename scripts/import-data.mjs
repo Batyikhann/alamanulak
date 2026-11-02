@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 
 // Parents before children, so relations resolve.
 const order = [
-  "adminAccount", "siteSettings", "newsArticle", "tournament", "team", "player", "ruleSection",
+  "adminAccount", "siteSettings", "newsArticle", "tournament", "player", "ruleSection",
   "horseCategory", "horseListing", "contactInquiry", "federationMember", "aboutPhoto", "historyMilestone",
 ];
 const dateFields = new Set(["createdAt", "updatedAt", "publishedAt", "startsAt", "endsAt", "sessionExpiresAt"]);
@@ -23,6 +23,10 @@ async function main() {
   const data = JSON.parse(readFileSync(file, "utf8"));
   const existing = await prisma.siteSettings.count() + await prisma.adminAccount.count();
   if (existing) throw new Error("The target database already has content; nothing was imported.");
+
+  // Older exports have a separate team list; players take their team's name as their club.
+  const teams = new Map((data.team ?? []).map((team) => [team.id, team]));
+  data.player = (data.player ?? []).map(({ teamId, ...player }) => ({ clubKy: teams.get(teamId)?.nameKy ?? "", clubRu: teams.get(teamId)?.nameRu ?? "", ...player }));
 
   await prisma.$transaction(order.map((model) => {
     // Sessions from the old database are not carried over: the admin signs in again.

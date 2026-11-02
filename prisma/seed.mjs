@@ -27,8 +27,8 @@ const settings = {
     "Федерация Аламан-Улак — организация, созданная для развития, сохранения и популяризации национальной игры улак в мире. Наша миссия — передать национальные ценности будущим поколениям.",
   calendarTitleKy: "Турнирлер",
   calendarTitleRu: "Турниры",
-  teamTitleKy: "Командалар",
-  teamTitleRu: "Команды",
+  teamTitleKy: "Оюнчулар",
+  teamTitleRu: "Игроки",
   newsTitleKy: "Жаңылыктар",
   newsTitleRu: "Новости",
   rulesTitleKy: "Оюндун эрежелери",
@@ -195,7 +195,8 @@ const positions = {
   reserve: ["Запастагы оюнчу", "Запасной игрок"],
 };
 
-const teams = [
+// Demo players grouped by club; each player keeps its club's name (there is no separate team list).
+const clubs = [
   {
     nameKy: "Ала-Тоо", nameRu: "Ала-Тоо", locationKy: "Бишкек", locationRu: "Бишкек", imageUrl: images.hero,
     descriptionKy: "Кыргызстандагы эң күчтүү жана тажрыйбалуу командалардын бири. Республикалык мелдештердин бир нече жолку жеңүүчүсү.",
@@ -320,7 +321,6 @@ const milestones = [
 async function clearContent() {
   await prisma.$transaction([
     prisma.player.deleteMany(),
-    prisma.team.deleteMany(),
     prisma.newsArticle.deleteMany(),
     prisma.tournament.deleteMany(),
     prisma.ruleSection.deleteMany(),
@@ -366,27 +366,21 @@ async function seedEditorial() {
     });
   }
 
-  if ((await prisma.team.count()) === 0) {
-    for (const { players, ...team } of teams) {
-      await prisma.team.create({
-        data: {
-          ...team,
-          published: true,
-          players: {
-            create: players.map(([name, position, number]) => ({
-              name,
-              positionKy: positions[position][0],
-              positionRu: positions[position][1],
-              number,
-              bioKy: "",
-              bioRu: "",
-              imageUrl: "",
-              published: true,
-            })),
-          },
-        },
-      });
-    }
+  if ((await prisma.player.count()) === 0) {
+    await prisma.player.createMany({
+      data: clubs.flatMap((club) => club.players.map(([name, position, number]) => ({
+        name,
+        positionKy: positions[position][0],
+        positionRu: positions[position][1],
+        number,
+        clubKy: club.nameKy,
+        clubRu: club.nameRu,
+        bioKy: "",
+        bioRu: "",
+        imageUrl: "",
+        published: true,
+      }))),
+    });
   }
 
   if ((await prisma.ruleSection.count()) === 0) {

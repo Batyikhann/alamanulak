@@ -28,7 +28,7 @@ async function authorize() {
   if (!(await isAdminAuthenticated())) throw new Error("Unauthorized");
 }
 
-const adminTabs = ["overview", "settings", "news", "tournaments", "teams", "rules", "horses", "federation", "inquiries"];
+const adminTabs = ["overview", "settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "inquiries"];
 
 // Back to the admin section the form was sent from (read from the referring URL), so a save
 // keeps you where you were. `saved` carries a timestamp: the site preview reloads when it changes.
@@ -146,36 +146,20 @@ export async function deleteTournamentAction(formData: FormData) {
   await finish(localeValue(formData));
 }
 
-export async function saveTeamAction(formData: FormData) {
-  await authorize();
-  const parsed = z.object({
-    nameKy: requiredText(120), nameRu: requiredText(120),
-    locationKy: requiredText(160), locationRu: requiredText(160),
-    descriptionKy: requiredText(1000), descriptionRu: requiredText(1000),
-    imageUrl: imagePath,
-  }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) invalid();
-  const data = { ...parsed.data, published: publishedValue(formData) };
-  const id = value(formData, "id");
-  if (id) await db.team.update({ where: { id }, data });
-  else await db.team.create({ data });
-  await finish(localeValue(formData));
-}
-
-export async function deleteTeamAction(formData: FormData) {
-  await authorize();
-  await db.team.delete({ where: { id: value(formData, "id") } });
-  await finish(localeValue(formData));
-}
-
 export async function savePlayerAction(formData: FormData) {
   await authorize();
   const parsed = z.object({
     name: requiredText(120), positionKy: requiredText(120), positionRu: requiredText(120),
-    number: z.string().trim(), bioKy: requiredText(1000), bioRu: requiredText(1000),
-    imageUrl: z.string().trim().max(500), teamId: requiredText(80),
+    number: z.string().trim(), bioKy: z.string().trim().max(1000), bioRu: z.string().trim().max(1000),
+    imageUrl: z.string().trim().max(500), clubKy: z.string().trim().max(120), clubRu: z.string().trim().max(120),
+    cityKy: z.string().trim().max(120), cityRu: z.string().trim().max(120), birthYear: z.string().trim(),
+    achievementsKy: z.string().trim().max(1500), achievementsRu: z.string().trim().max(1500),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success || (parsed.data.imageUrl && !/^(https?:\/\/|\/)/.test(parsed.data.imageUrl))) invalid();
+  if (Boolean(parsed.data.bioKy) !== Boolean(parsed.data.bioRu) || Boolean(parsed.data.clubKy) !== Boolean(parsed.data.clubRu)
+    || Boolean(parsed.data.cityKy) !== Boolean(parsed.data.cityRu) || Boolean(parsed.data.achievementsKy) !== Boolean(parsed.data.achievementsRu)) invalid();
+  const birthYear = parsed.data.birthYear ? Number(parsed.data.birthYear) : null;
+  if (birthYear !== null && (!Number.isInteger(birthYear) || birthYear < 1930 || birthYear > new Date().getFullYear())) invalid();
   const number = parsed.data.number ? Number(parsed.data.number) : null;
   if (number !== null && (!Number.isInteger(number) || number < 0 || number > 999)) invalid();
   const data = {
@@ -186,7 +170,13 @@ export async function savePlayerAction(formData: FormData) {
     bioKy: parsed.data.bioKy,
     bioRu: parsed.data.bioRu,
     imageUrl: parsed.data.imageUrl,
-    teamId: parsed.data.teamId,
+    clubKy: parsed.data.clubKy,
+    clubRu: parsed.data.clubRu,
+    cityKy: parsed.data.cityKy,
+    cityRu: parsed.data.cityRu,
+    birthYear,
+    achievementsKy: parsed.data.achievementsKy,
+    achievementsRu: parsed.data.achievementsRu,
     published: publishedValue(formData),
   };
   const id = value(formData, "id");
@@ -206,6 +196,7 @@ export async function saveRuleAction(formData: FormData) {
   const parsed = z.object({
     titleKy: requiredText(180), titleRu: requiredText(180),
     bodyKy: requiredText(), bodyRu: requiredText(), sortOrder: z.coerce.number().int().min(0).max(999),
+    symbol: z.enum(["", "horn", "rosette", "tunduk", "horse", "shyrdak", "emblem"]),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) invalid();
   const data = { ...parsed.data, published: publishedValue(formData) };
@@ -358,5 +349,27 @@ export async function saveMilestoneAction(formData: FormData) {
 export async function deleteMilestoneAction(formData: FormData) {
   await authorize();
   await db.historyMilestone.delete({ where: { id: value(formData, "id") } });
+  await finish(localeValue(formData));
+}
+
+export async function saveMediaAction(formData: FormData) {
+  await authorize();
+  const parsed = z.object({
+    imageUrl: imagePath, captionKy: requiredText(200), captionRu: requiredText(200),
+    videoUrl: z.string().trim().max(300).refine((url) => !url || /^https:\/\/(www\.)?(youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/)[\w-]{11}/.test(url)),
+    category: z.enum(["tournaments", "players", "horses", "federation"]),
+    sortOrder: z.coerce.number().int().min(0).max(999),
+  }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) invalid();
+  const data = { ...parsed.data, published: publishedValue(formData) };
+  const id = value(formData, "id");
+  if (id) await db.mediaItem.update({ where: { id }, data });
+  else await db.mediaItem.create({ data });
+  await finish(localeValue(formData));
+}
+
+export async function deleteMediaAction(formData: FormData) {
+  await authorize();
+  await db.mediaItem.delete({ where: { id: value(formData, "id") } });
   await finish(localeValue(formData));
 }

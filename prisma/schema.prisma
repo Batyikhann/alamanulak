@@ -79,21 +79,6 @@ model Tournament {
   updatedAt       DateTime @updatedAt
 }
 
-model Team {
-  id            String   @id @default(cuid())
-  nameKy        String
-  nameRu        String
-  locationKy    String
-  locationRu    String
-  descriptionKy String
-  descriptionRu String
-  imageUrl      String
-  players       Player[]
-  published     Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
 model Player {
   id         String   @id @default(cuid())
   name       String
@@ -103,8 +88,15 @@ model Player {
   bioKy      String
   bioRu      String
   imageUrl   String
-  teamId     String
-  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // The club the player rides for, as text (teams are no longer a separate list).
+  clubKy     String   @default("")
+  clubRu     String   @default("")
+  // Front of the player card shows the city; the back shows birth year, achievements and bio.
+  cityKy         String @default("")
+  cityRu         String @default("")
+  birthYear      Int?
+  achievementsKy String @default("")
+  achievementsRu String @default("")
   published  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -116,6 +108,8 @@ model RuleSection {
   titleRu   String
   bodyKy    String
   bodyRu    String
+  // Felt-panel symbol on the rules page: horn | tumar | horse | tunduk | rosette | band ("" picks one by position).
+  symbol    String   @default("")
   sortOrder Int      @default(0)
   published Boolean  @default(false)
   updatedAt DateTime @updatedAt
@@ -203,6 +197,21 @@ model HistoryMilestone {
   titleRu   String
   textKy    String   @default("")
   textRu    String   @default("")
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The Медиа page ("тушкийиз"): photos and optional videos with a category used by the thread filters.
+// category: tournaments | players | horses | federation
+model MediaItem {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  videoUrl  String   @default("")
+  captionKy String
+  captionRu String
+  category  String   @default("federation")
+  sortOrder Int      @default(0)
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

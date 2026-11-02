@@ -5,7 +5,6 @@ import {
   BadgeCheck,
   BookOpen,
   CalendarDays,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Flag,
@@ -25,6 +24,7 @@ import {
   Search,
   Store,
   Sun,
+  RotateCw,
   Trophy,
   User,
   Users,
@@ -34,18 +34,21 @@ import {
 import Image from "next/image";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import FederationPage from "@/components/federation-page";
+import MediaPage, { type MediaCategory, type MediaEntry } from "@/components/media-page";
+import RulesPage from "@/components/rules-page";
+import TournamentsPage from "@/components/tournaments-page";
 import LocaleSync from "@/components/locale-sync";
 import type {
   AboutPhoto,
   FederationMember,
   HistoryMilestone,
+  MediaItem,
   HorseCategory,
   HorseListing,
   NewsArticle,
   Player,
   RuleSection,
   SiteSettings,
-  Team,
   Tournament,
 } from "@prisma/client";
 import type { Locale, PublicSection } from "@/lib/i18n";
@@ -59,7 +62,6 @@ type LocalizedTournament = Omit<Tournament, "startsAt" | "endsAt"> & {
   endsAt: string;
   isPast: boolean;
 };
-type TeamWithPlayers = Team & { players: Player[] };
 type HorseWithCategory = HorseListing & { category: HorseCategory };
 type Labels = (typeof copy)[Locale];
 type PriceBand = "any" | "low" | "mid" | "high";
@@ -75,19 +77,23 @@ type HeroSlide = {
   isMain?: boolean;
 };
 
+type NewsPage = { articles: LocalizedArticle[]; page: number; pageCount: number; archive: boolean; archiveTotal: number };
+
 type HomeExperienceProps = {
   locale: Locale;
   section?: PublicSection;
+  newsPage?: NewsPage;
   settings: SiteSettings;
   articles: LocalizedArticle[];
   tournaments: LocalizedTournament[];
-  teams: TeamWithPlayers[];
+  players: Player[];
   rules: RuleSection[];
   categories: HorseCategory[];
   horses: HorseWithCategory[];
   members: FederationMember[];
   aboutPhotos: AboutPhoto[];
   milestones: HistoryMilestone[];
+  mediaItems: MediaItem[];
 };
 
 // Yurt, flag and mountains: the federation's "who we are" picture.
@@ -113,8 +119,6 @@ const monthLabels: Record<Locale, string[]> = {
   ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
 };
 
-// Emblem colours follow the team order, which is stable (sorted by name).
-const teamColors = ["#762d36", "#2c4a7a", "#2f5e48", "#9a7f48", "#583a5c", "#2a5c60"];
 
 const priceBands: Record<Exclude<PriceBand, "any">, [number, number]> = {
   low: [0, 800000],
@@ -158,13 +162,97 @@ function DateBlock({ value, locale }: { value: string; locale: Locale }) {
   );
 }
 
-function TeamEmblem({ index, size = "md" }: { index: number; size?: "md" | "lg" }) {
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+}
+
+// Player photo, or gold initials on a rosette when there is none; the shirt number sits on the edge.
+function PlayerPortrait({ player, size }: { player: Player; size: number }) {
   return (
-    <span
-      className={`team-emblem team-emblem-${size}`}
-      style={{ "--team-color": teamColors[index % teamColors.length] } as CSSProperties}
-      aria-hidden="true"
-    />
+    <span className="player-portrait" style={{ "--portrait": `${size}px` } as CSSProperties}>
+      {player.imageUrl
+        ? <Image src={player.imageUrl} alt="" width={size * 2} height={size * 2} unoptimized />
+        : <span className="player-initials">{initials(player.name)}</span>}
+      {player.number !== null && <span className="player-number">{player.number}</span>}
+    </span>
+  );
+}
+
+// A player's card: tap to turn it over for the details; it turns back by itself once it scrolls out of view.
+function PlayerFlipCard({ player, locale, labels }: { player: Player; locale: Locale; labels: Labels }) {
+  const [flipped, setFlipped] = useState(false);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const city = text(locale, player.cityKy, player.cityRu);
+  const club = text(locale, player.clubKy, player.clubRu);
+  const position = text(locale, player.positionKy, player.positionRu);
+  const achievements = text(locale, player.achievementsKy, player.achievementsRu);
+  const bio = text(locale, player.bioKy, player.bioRu);
+  const age = player.birthYear ? new Date().getFullYear() - player.birthYear : null;
+
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || !flipped) return;
+    const observer = new IntersectionObserver(([entry]) => { if (!entry.isIntersecting) setFlipped(false); });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [flipped]);
+
+  const facts: [string, string][] = [
+    [labels.playerNumber, player.number !== null ? String(player.number) : ""],
+    [labels.playerPosition, position],
+    [labels.playerClub, club],
+    [labels.playerCity, city],
+    [labels.playerBorn, player.birthYear ? `${player.birthYear} (${age} ${labels.playerYears})` : ""],
+  ].filter((fact): fact is [string, string] => Boolean(fact[1]));
+
+  return (
+    <button ref={cardRef} type="button" className={`player-flip${flipped ? " is-flipped" : ""}`} onClick={() => setFlipped(!flipped)} aria-pressed={flipped} aria-label={`${player.name}: ${flipped ? labels.cardFront : labels.cardBack}`}>
+      <span className="player-flip-inner">
+        <span className="player-face player-face-front" aria-hidden={flipped}>
+          <PlayerPortrait player={player} size={128} />
+          <strong className="player-face-name">{player.name}</strong>
+          {city && <span className="player-face-city"><MapPin size={13} />{city}</span>}
+          {position && <span className="player-face-role">{position}</span>}
+          {club && <span className="player-club">{club}</span>}
+          <span className="player-flip-hint"><RotateCw size={13} />{labels.cardMore}</span>
+        </span>
+        <span className="player-face player-face-back" aria-hidden={!flipped}>
+          <span className="player-back-head">
+            <strong>{player.name}</strong>
+            {player.number !== null && <span className="player-back-number">{player.number}</span>}
+          </span>
+          <span className="player-facts">
+            {facts.map(([label, value]) => <span key={label}><small>{label}</small>{value}</span>)}
+          </span>
+          {achievements && <span className="player-back-block"><small>{labels.playerAchievements}</small>{achievements}</span>}
+          {bio && <span className="player-back-block"><small>{labels.playerAbout}</small>{bio}</span>}
+          {!achievements && !bio && <span className="player-back-empty">{labels.playerNoDetails}</span>}
+          <span className="player-flip-hint"><RotateCw size={13} />{labels.cardFront}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// Page numbers under the news grid, plus the way into (or back out of) the archive.
+function NewsPager({ newsPage, locale, labels }: { newsPage: NewsPage; locale: Locale; labels: Labels }) {
+  const { page, pageCount, archive, archiveTotal } = newsPage;
+  const href = (target: number) => `/${locale}/news?${archive ? "archive=1&" : ""}page=${target}#news`;
+  return (
+    <div className="news-pager">
+      {pageCount > 1 && <nav className="pagination" aria-label={labels.pagination}>
+        {page > 1 ? <a href={href(page - 1)} aria-label={labels.prevPage}><ChevronLeft size={18} /></a> : <span className="is-disabled" aria-hidden="true"><ChevronLeft size={18} /></span>}
+        {Array.from({ length: pageCount }, (_, index) => index + 1).map((target) => (
+          target === page
+            ? <span key={target} className="is-current" aria-current="page">{target}</span>
+            : <a key={target} href={href(target)} aria-label={`${labels.pageLabel} ${target}`}>{target}</a>
+        ))}
+        {page < pageCount ? <a href={href(page + 1)} aria-label={labels.nextPage}><ChevronRight size={18} /></a> : <span className="is-disabled" aria-hidden="true"><ChevronRight size={18} /></span>}
+      </nav>}
+      {archive
+        ? <a className="text-link news-archive-link" href={`/${locale}/news#news`}><ChevronLeft size={16} />{labels.backToNews}</a>
+        : archiveTotal > 0 && <a className="text-link news-archive-link" href={`/${locale}/news?archive=1#news`}>{labels.newsArchive} · {archiveTotal}<ArrowRight size={16} /></a>}
+    </div>
   );
 }
 
@@ -261,16 +349,18 @@ function HorseCard({
 export default function HomeExperience({
   locale,
   section,
+  newsPage,
   settings,
   articles,
   tournaments,
-  teams,
+  players,
   rules,
   categories,
   horses,
   members,
   aboutPhotos,
   milestones,
+  mediaItems,
 }: HomeExperienceProps) {
   const labels = copy[locale];
   const [activeCategory, setActiveCategory] = useState("all");
@@ -296,13 +386,12 @@ export default function HomeExperience({
   });
   const upcoming = tournaments.filter((item) => !item.isPast);
   const past = tournaments.filter((item) => item.isPast).reverse();
-  const playerCount = teams.reduce((total, team) => total + team.players.length, 0);
   const [horsesTitle, ...horsesSubtitle] = text(locale, settings.horsesTitleKy, settings.horsesTitleRu).split("\n");
   const navItems: [PublicSection | "home", string, LucideIcon][] = [
     ["home", labels.navHome, House],
     ["about", labels.navAbout, Info],
     ["calendar", labels.navCalendar, Trophy],
-    ["teams", labels.navTeams, Users],
+    ["players", labels.navPlayers, Users],
     ["news", labels.navNews, Newspaper],
     ["media", labels.navMedia, Images],
     ["rules", labels.navRules, BookOpen],
@@ -310,7 +399,7 @@ export default function HomeExperience({
   ];
   const stats = [
     { icon: Flag, value: String(foundedYear), label: labels.statFounded },
-    { icon: Users, value: String(teams.length), label: labels.statTeams },
+    { icon: Users, value: String(players.length), label: labels.statPlayers },
     { icon: Trophy, value: String(tournaments.length), label: labels.statTournaments },
   ];
   const horseFeatures: [LucideIcon, string][] = [
@@ -323,21 +412,26 @@ export default function HomeExperience({
   const searchIndex: { title: string; kind: string; href: string }[] = [
     ...articles.map((item) => ({ title: text(locale, item.titleKy, item.titleRu), kind: labels.navNews, href: `/${locale}/news` })),
     ...tournaments.map((item) => ({ title: text(locale, item.titleKy, item.titleRu), kind: labels.navCalendar, href: `/${locale}/calendar` })),
-    ...teams.map((item) => ({ title: text(locale, item.nameKy, item.nameRu), kind: labels.navTeams, href: `/${locale}/teams` })),
+    ...players.map((item) => ({ title: item.name, kind: labels.navPlayers, href: `/${locale}/players` })),
     ...horses.map((item) => ({ title: text(locale, item.nameKy, item.nameRu), kind: labels.navHorses, href: `/${locale}/horses` })),
     ...rules.map((item) => ({ title: text(locale, item.titleKy, item.titleRu), kind: labels.navRules, href: `/${locale}/rules` })),
   ];
   const needle = query.trim().toLocaleLowerCase(locale);
   const searchResults = needle ? searchIndex.filter((item) => item.title.toLocaleLowerCase(locale).includes(needle)).slice(0, 8) : [];
-  const gallery = [
-    { src: settings.heroImageUrl, caption: labels.heroKicker },
-    { src: federationImage, caption: labels.country },
-    { src: legacyImage, caption: labels.legacyTitle },
-    { src: tournamentSlideImage, caption: labels.homeTournaments },
-    ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu) })),
-    ...teams.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu) })),
-    ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu) })),
-  ].filter((item, index, list) => item.src && list.findIndex((other) => other.src === item.src) === index);
+  // Media page: the admin's media list; until it has items, photos gathered from the rest of the site.
+  const gallery: MediaEntry[] = mediaItems.length
+    ? mediaItems.map((item) => ({ id: item.id, src: item.imageUrl, caption: text(locale, item.captionKy, item.captionRu), category: item.category as MediaCategory, videoUrl: item.videoUrl }))
+    : ([
+      { src: settings.heroImageUrl, caption: labels.heroKicker, category: "federation" },
+      { src: tournamentSlideImage, caption: labels.homeTournaments, category: "tournaments" },
+      { src: federationImage, caption: labels.country, category: "federation" },
+      { src: legacyImage, caption: labels.legacyTitle, category: "federation" },
+      ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu), category: "tournaments" })),
+      ...players.map((item) => ({ src: item.imageUrl, caption: item.name, category: "players" })),
+      ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu), category: "horses" })),
+    ] as { src: string; caption: string; category: MediaCategory }[])
+      .filter((item, index, list) => item.src && list.findIndex((other) => other.src === item.src) === index)
+      .map((item) => ({ ...item, id: item.src }));
 
   // Home hero slides, in the spirit of a streaming-site carousel: federation, next event, latest news, horse market.
   const nextEvent = upcoming[0];
@@ -405,7 +499,7 @@ export default function HomeExperience({
   const latestMedia = [
     ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu), at: new Date(item.updatedAt).getTime() })),
     ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu), at: new Date(item.updatedAt).getTime() })),
-    ...teams.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu), at: new Date(item.updatedAt).getTime() })),
+    ...players.map((item) => ({ src: item.imageUrl, caption: item.name, at: new Date(item.updatedAt).getTime() })),
     { src: settings.heroImageUrl, caption: labels.heroKicker, at: new Date(settings.updatedAt).getTime() },
     { src: federationImage, caption: labels.country, at: 0 },
     { src: legacyImage, caption: labels.legacyTitle, at: 0 },
@@ -447,19 +541,18 @@ export default function HomeExperience({
           })}
         </nav>
         <div className="header-actions">
-          <div className="lang-toggle" aria-label="Language">
-            {(["ky", "ru"] as const).map((code) => (
-              <a key={code} className={code === locale ? "is-active" : undefined} aria-current={code === locale ? "true" : undefined} href={`/${code}${section ? `/${section}` : ""}`}>
-                {code === "ky" ? "KG" : "RU"}
-              </a>
-            ))}
+          {/* Only the other language is offered, named in that language so its readers recognise it: "Русский" on the Kyrgyz site, "Кыргызча" on the Russian one. */}
+          <div className="lang-toggle">
+            <a href={`/${locale === "ky" ? "ru" : "ky"}${section ? `/${section}` : ""}`} hrefLang={locale === "ky" ? "ru" : "ky"} aria-label={`${labels.languageLabel}: ${locale === "ky" ? "Русский" : "Кыргызча"}`}>
+              <span className="lang-full">{locale === "ky" ? "Русский" : "Кыргызча"}</span><span className="lang-short">{locale === "ky" ? "РУС" : "КЫР"}</span>
+            </a>
           </div>
           <button className="icon-button theme-toggle" type="button" onClick={toggleTheme} aria-label={labels.themeLabel} title={labels.themeLabel}>
             <Sun className="theme-icon-sun" size={19} aria-hidden="true" />
             <Moon className="theme-icon-moon" size={19} aria-hidden="true" />
           </button>
           <span className="header-divider" aria-hidden="true" />
-          <button className="icon-button" type="button" onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }} aria-label={labels.searchLabel} aria-expanded={searchOpen} aria-controls="site-search">
+          <button className="icon-button search-toggle" type="button" onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }} aria-label={labels.searchLabel} aria-expanded={searchOpen} aria-controls="site-search">
             {searchOpen ? <X size={20} /> : <Search size={20} />}
           </button>
           <button className="icon-button" type="button" onClick={() => { setMenuOpen(!menuOpen); setSearchOpen(false); }} aria-label={menuOpen ? labels.close : labels.menu} aria-expanded={menuOpen} aria-controls="site-menu">
@@ -493,6 +586,12 @@ export default function HomeExperience({
               </a>
             );
           })}
+          <button className="menu-drawer-theme" type="button" onClick={toggleTheme}>
+            <Sun className="theme-icon-sun" size={19} aria-hidden="true" />
+            <Moon className="theme-icon-moon" size={19} aria-hidden="true" />
+            <span className="theme-label-dark">{labels.themeToLight}</span>
+            <span className="theme-label-light">{labels.themeToDark}</span>
+          </button>
           <div className="menu-drawer-contacts">
             <a href={`tel:${settings.contactPhone}`}><Phone size={16} />{settings.contactPhone}</a>
             <a href={`mailto:${settings.contactEmail}`}><Mail size={16} />{settings.contactEmail}</a>
@@ -612,17 +711,18 @@ export default function HomeExperience({
         </section>
 
         <section className="home-row">
-          <RowHeading title={labels.homeTeams} icon={Users} href={`/${locale}/teams`} linkLabel={labels.allTeams} />
+          <RowHeading title={labels.homePlayers} icon={Users} href={`/${locale}/players`} linkLabel={labels.allPlayers} />
           <RowTrack labels={labels}>
-            {teams.map((team, index) => (
-              <a className="row-card team-tile" key={team.id} href={`/${locale}/teams`}>
-                <TeamEmblem index={index} />
-                <strong>{text(locale, team.nameKy, team.nameRu)}</strong>
-                <small><MapPin size={12} />{text(locale, team.locationKy, team.locationRu)}</small>
-                <small className="team-tile-count">{team.players.length} {labels.players}</small>
+            {players.map((player) => (
+              <a className="row-card player-tile" key={player.id} href={`/${locale}/players`}>
+                <PlayerPortrait player={player} size={84} />
+                <strong>{player.name}</strong>
+                <small>{text(locale, player.positionKy, player.positionRu)}</small>
+                {text(locale, player.clubKy, player.clubRu) && <small className="player-club">{text(locale, player.clubKy, player.clubRu)}</small>}
               </a>
             ))}
           </RowTrack>
+          {!players.length && <p className="empty-note row-empty">{locale === "ky" ? "Азырынча маалымат жок." : "Пока нет данных."}</p>}
         </section>
 
         {horses.length > 0 && <section className="home-row">
@@ -660,78 +760,32 @@ export default function HomeExperience({
         members={members}
         photos={aboutPhotos}
         milestones={milestones}
-        stats={[...stats, { icon: Ribbon, value: String(playerCount), label: labels.statPlayers }]}
+        stats={[...stats, { icon: MapPin, value: String(new Set(members.map((member) => member.region).filter(Boolean)).size), label: labels.statRegions }]}
         crownImage={federationImage}
         headerImage={aboutHeaderImage}
       />}
 
-      {section === "calendar" && <section className="calendar-section section-wrap" id="calendar">
+      {section === "calendar" && <TournamentsPage locale={locale} settings={settings} tournaments={tournaments} />}
+
+      {section === "players" && <section className="players-section section-wrap" id="players">
         <div className="section-heading">
-          <div><p className="eyebrow">{labels.calendarLabel}</p><h2>{text(locale, settings.calendarTitleKy, settings.calendarTitleRu)}</h2></div>
+          <div><p className="eyebrow">{labels.playersLabel}</p><h2>{text(locale, settings.teamTitleKy, settings.teamTitleRu)}</h2></div>
         </div>
-        <div className="calendar-grid">
-          <div className="tournament-list">
-            {upcoming.length ? upcoming.map((item) => (
-              <article className="card tournament-row" key={item.id}>
-                <DateBlock value={item.startsAt} locale={locale} />
-                <div className="tournament-info">
-                  <h3>{text(locale, item.titleKy, item.titleRu)}</h3>
-                  <p><MapPin size={14} />{text(locale, item.locationKy, item.locationRu)}</p>
-                  <p><CalendarDays size={14} />{dateLabel(item.startsAt, locale)} — {dateLabel(item.endsAt, locale, true)}</p>
-                </div>
-                <span className="event-status">{labels.upcoming}</span>
-                <ArrowRight className="row-arrow" size={19} />
-              </article>
-            )) : <p className="empty-note">{locale === "ky" ? "Мелдештер жакында жарыяланат." : "Расписание скоро появится."}</p>}
+        <div className="player-grid">
+          {players.map((player) => <PlayerFlipCard key={player.id} player={player} locale={locale} labels={labels} />)}
+          {!players.length && <p className="empty-note">{locale === "ky" ? "Оюнчулар жакында кошулат." : "Игроки скоро появятся."}</p>}
+        </div>
+      </section>}
+
+      {section === "news" && newsPage && <section className="news-section section-wrap" id="news">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">{labels.newsLabel}</p>
+            <h2>{newsPage.archive ? labels.newsArchive : text(locale, settings.newsTitleKy, settings.newsTitleRu)}</h2>
           </div>
-          <aside className="result-panel">
-            <p className="eyebrow">{labels.latestResult}</p>
-            {past[0] ? (
-              <>
-                <span className="result-date">{dateLabel(past[0].startsAt, locale, true)}</span>
-                <h3>{text(locale, past[0].titleKy, past[0].titleRu)}</h3>
-                <p className="result-location"><MapPin size={14} />{text(locale, past[0].locationKy, past[0].locationRu)}</p>
-                <div className="result-score"><Trophy size={18} /><span>{text(locale, past[0].resultSummaryKy, past[0].resultSummaryRu) || labels.result}</span></div>
-              </>
-            ) : <p>{locale === "ky" ? "Жыйынтыктар жарыяланганда бул жерде көрсөтүлөт." : "Результаты появятся здесь после турнира."}</p>}
-            <span className="result-watermark" aria-hidden="true" />
-          </aside>
-        </div>
-      </section>}
-
-      {section === "teams" && <section className="teams-section section-wrap" id="teams">
-        <div className="section-heading">
-          <div><p className="eyebrow">{labels.teamLabel}</p><h2>{text(locale, settings.teamTitleKy, settings.teamTitleRu)}</h2></div>
-        </div>
-        <div className="team-grid">
-          {teams.map((team, index) => (
-            <article className="card team-card" key={team.id}>
-              <div className="team-image-wrap">
-                {team.imageUrl ? <Image src={team.imageUrl} alt={text(locale, team.nameKy, team.nameRu)} width={900} height={500} unoptimized /> : <div className="team-image-placeholder" />}
-              </div>
-              <div className="team-card-body">
-                <TeamEmblem index={index} size="lg" />
-                <div className="team-card-heading">
-                  <h3>{text(locale, team.nameKy, team.nameRu)}</h3>
-                  <span><MapPin size={13} />{text(locale, team.locationKy, team.locationRu)}</span>
-                </div>
-                <p>{text(locale, team.descriptionKy, team.descriptionRu)}</p>
-                <div className="player-list">
-                  {team.players.slice(0, 4).map((player) => <div key={player.id}><span>{player.number ? String(player.number).padStart(2, "0") : "—"}</span><strong>{player.name}</strong><small>{text(locale, player.positionKy, player.positionRu)}</small></div>)}
-                </div>
-              </div>
-            </article>
-          ))}
-          {!teams.length && <p className="empty-note">{locale === "ky" ? "Командалар жакында кошулат." : "Команды скоро появятся."}</p>}
-        </div>
-      </section>}
-
-      {section === "news" && <section className="news-section section-wrap" id="news">
-        <div className="section-heading">
-          <div><p className="eyebrow">{labels.newsLabel}</p><h2>{text(locale, settings.newsTitleKy, settings.newsTitleRu)}</h2></div>
         </div>
         <div className="news-grid">
-          {articles.map((article) => (
+          {newsPage.articles.map((article) => (
             <article className="card news-card" key={article.id}>
               <div className="news-image-wrap"><Image src={article.imageUrl} alt="" width={900} height={500} unoptimized /></div>
               <div className="news-card-body">
@@ -742,60 +796,38 @@ export default function HomeExperience({
               </div>
             </article>
           ))}
-          {!articles.length && <p className="empty-note">{locale === "ky" ? "Жаңылыктар жакында жарыяланат." : "Новости скоро появятся."}</p>}
+          {!newsPage.articles.length && <p className="empty-note">{locale === "ky" ? "Жаңылыктар жакында жарыяланат." : "Новости скоро появятся."}</p>}
         </div>
+        <NewsPager newsPage={newsPage} locale={locale} labels={labels} />
       </section>}
 
-      {section === "media" && <section className="media-section section-wrap" id="media">
-        <div className="section-heading">
-          <div><p className="eyebrow">{labels.mediaLabel}</p><h2>{labels.mediaTitle}</h2></div>
-        </div>
-        <div className="gallery-grid">
-          {gallery.map((item) => (
-            <figure className="card gallery-item" key={item.src}>
-              <Image src={item.src} alt={item.caption} width={900} height={640} unoptimized />
-              <figcaption>{item.caption}</figcaption>
-            </figure>
-          ))}
-        </div>
-      </section>}
+      {section === "media" && <MediaPage locale={locale} items={gallery} />}
 
-      {section === "rules" && <section className="rules-section section-wrap" id="rules">
-        <div className="rules-intro">
-          <p className="eyebrow">{labels.rulesLabel}</p>
-          <h2>{text(locale, settings.rulesTitleKy, settings.rulesTitleRu)}</h2>
-          <span className="rules-tunduk" aria-hidden="true" />
-        </div>
-        <div className="rules-list">
-          {rules.map((rule, index) => (
-            <details className="card rule-item" key={rule.id} open={index === 0}>
-              <summary><span className="rule-index">{String(index + 1).padStart(2, "0")}</span><strong>{text(locale, rule.titleKy, rule.titleRu)}</strong><ChevronDown size={19} /></summary>
-              <p>{text(locale, rule.bodyKy, rule.bodyRu)}</p>
-            </details>
-          ))}
-          {!rules.length && <p className="empty-note">{locale === "ky" ? "Эрежелер жаңыртылууда." : "Правила обновляются."}</p>}
-        </div>
-      </section>}
+      {section === "rules" && <RulesPage locale={locale} settings={settings} rules={rules} />}
 
       {section === "horses" && <>
         <div className="hero-shell">
         <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
         <section className="market-hero">
           <Image className="market-hero-image" src={marketImage} alt="" width={1672} height={941} priority unoptimized />
+          {/* A short slide-style caption on the photo; the details follow below it */}
+          <div className="photo-caption">
+            <p className="eyebrow">{labels.horsesLabel}</p>
+            <h1 className="photo-caption-title">{[horsesTitle, ...horsesSubtitle].join(" ")}</h1>
+            <p className="photo-caption-text">{labels.marketCaption}</p>
+            <div className="hero-actions">
+              <a className="button button-accent" href="#catalog">{labels.browseCatalog}<ArrowRight size={17} /></a>
+              <a className="hero-round-link" href="#quick-find"><span><Search size={16} /></span>{labels.quickFind}</a>
+            </div>
+          </div>
           <div className="market-hero-inner section-wrap">
             <div className="market-hero-copy">
-              <p className="eyebrow">{labels.horsesLabel}</p>
-              <h1>{horsesTitle}</h1>
-              {horsesSubtitle.length > 0 && <p className="market-subtitle">{horsesSubtitle.join(" ")}</p>}
               <p className="market-intro">{labels.horsesIntro}</p>
-              <div className="hero-actions">
-                <a className="button button-accent" href="#catalog">{labels.browseCatalog}<ArrowRight size={17} /></a>
-              </div>
               <ul className="market-features">
                 {horseFeatures.map(([Icon, label]) => <li key={label}><span><Icon size={20} /></span>{label}</li>)}
               </ul>
             </div>
-            <form className="card quick-find" onSubmit={(event) => { event.preventDefault(); document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }); }}>
+            <form className="card quick-find" id="quick-find" onSubmit={(event) => { event.preventDefault(); document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }); }}>
               <h2>{labels.quickFind}</h2>
               <label><Ribbon size={16} /><span className="sr-only">{labels.breed}</span>
                 <select value={activeCategory} onChange={(event) => setActiveCategory(event.target.value)}>

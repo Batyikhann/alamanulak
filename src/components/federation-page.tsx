@@ -5,7 +5,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { ArrowRight, ChevronLeft, ChevronRight, MapPin, Phone, X, type LucideIcon } from "lucide-react";
 import type { AboutPhoto, FederationMember, HistoryMilestone, SiteSettings } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
-import { copy, text } from "@/lib/i18n";
+import { copy, foundedYear, text } from "@/lib/i18n";
+import KeregeFillers from "@/components/kerege-fillers";
+import { latticeCell, latticeWidth } from "@/lib/kerege";
 import { kgMapSize, kgRegions } from "@/lib/kg-regions";
 
 // The "about" page is built like a боз үй: түндүк (mission and numbers), уук (leadership
@@ -43,18 +45,6 @@ function regionName(locale: Locale, id: string) {
   return region ? text(locale, region.nameKy, region.nameRu) : "";
 }
 
-// Diamond lattice placement: rows alternate k and k - 1 cells, odd rows shifted by half a cell,
-// each diamond spanning 2 columns and 2 half-height rows so neighbours interlock like a кереге.
-function latticeCell(index: number, k: number) {
-  let row = 0;
-  let rest = index;
-  while (rest >= (row % 2 ? k - 1 : k)) {
-    rest -= row % 2 ? k - 1 : k;
-    row += 1;
-  }
-  return { col: (row % 2 ? 2 : 1) + rest * 2, row: row + 1 };
-}
-
 function SectionHeading({ label, title, children }: { label: string; title: string; children?: ReactNode }) {
   return (
     <div className="section-heading fed-heading">
@@ -81,7 +71,7 @@ export default function FederationPage({ locale, settings, members, photos, mile
   const regionMembers = regional.filter((member) => member.region === activeRegion);
 
   const [lightbox, setLightbox] = useState<number | null>(null);
-  const desktopK = Math.min(4, Math.max(2, Math.ceil((photos.length + 1) / 2)));
+  const desktopK = latticeWidth(photos.length);
 
   useEffect(() => {
     if (lightbox === null) return;
@@ -112,21 +102,24 @@ export default function FederationPage({ locale, settings, members, photos, mile
       <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
       <section className="market-hero page-hero" id="about">
         <Image className="market-hero-image" src={headerImage} alt="" width={1672} height={941} priority unoptimized />
-        <div className="section-wrap page-hero-copy">
+        {/* A short slide-style caption on the photo; the details follow below it */}
+        <div className="photo-caption">
           <p className="eyebrow">{labels.fedCrownLabel}</p>
-          <h1>{text(locale, settings.aboutTitleKy, settings.aboutTitleRu)}</h1>
-          <p className="body-large">{text(locale, settings.aboutTextKy, settings.aboutTextRu)}</p>
-          <a className="button button-accent" href={`/${locale}/rules`}>{labels.aboutCta}<ArrowRight size={17} /></a>
+          <h1 className="photo-caption-title">{text(locale, settings.aboutTitleKy, settings.aboutTitleRu)}</h1>
+          <p className="photo-caption-text">{labels.aboutCaption.replace("{year}", String(foundedYear))}</p>
+          <div className="hero-actions">
+            <a className="button button-accent" href={`/${locale}/rules`}>{labels.aboutCta}<ArrowRight size={17} /></a>
+            <a className="hero-round-link" href={`/${locale}/calendar`}><span><ArrowRight size={16} /></span>{labels.heroAction}</a>
+          </div>
         </div>
       </section>
     </div>
 
-    {/* Түндүк: the crown of the yurt holds the federation's numbers */}
+    {/* Who we are, beside the federation's numbers */}
     <section className="home-row fed-crown">
       <div className="section-wrap fed-crown-inner">
         <div className="fed-crown-copy">
-          <p className="eyebrow">{labels.tundukLabel}</p>
-          <h2>{labels.fedCrownNote}</h2>
+          <p className="fed-crown-text">{text(locale, settings.aboutTextKy, settings.aboutTextRu)}</p>
         </div>
         <div className="fed-crown-art">
           <div className="fed-crown-disc">
@@ -221,6 +214,7 @@ export default function FederationPage({ locale, settings, members, photos, mile
                 </button>
               );
             })}
+            <KeregeFillers count={photos.length} desktopK={desktopK} usedPhotos={photos.map((photo) => photo.imageUrl)} />
           </div>
         </div>
       </div>

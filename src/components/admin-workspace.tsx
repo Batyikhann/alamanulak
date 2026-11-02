@@ -7,6 +7,7 @@ import {
   FolderOpen,
   Landmark,
   LogOut,
+  Images,
   Mail,
   Newspaper,
   Save,
@@ -22,13 +23,13 @@ import type {
   ContactInquiry,
   FederationMember,
   HistoryMilestone,
+  MediaItem,
   HorseCategory,
   HorseListing,
   NewsArticle,
   Player,
   RuleSection,
   SiteSettings,
-  Team,
   Tournament,
 } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
@@ -39,29 +40,28 @@ import {
   deleteAboutPhotoAction,
   deleteCategoryAction,
   deleteHorseAction,
+  deleteMediaAction,
   deleteMemberAction,
   deleteMilestoneAction,
   deleteNewsAction,
   deletePlayerAction,
   deleteRuleAction,
-  deleteTeamAction,
   deleteTournamentAction,
   logoutAction,
   markInquiryHandledAction,
   saveAboutPhotoAction,
   saveCategoryAction,
   saveHorseAction,
+  saveMediaAction,
   saveMemberAction,
   saveMilestoneAction,
   saveNewsAction,
   savePlayerAction,
   saveRuleAction,
   saveSettingsAction,
-  saveTeamAction,
   saveTournamentAction,
 } from "@/app/admin/actions";
 
-type TeamWithPlayers = Team & { players: Player[] };
 type HorseWithCategory = HorseListing & { category: HorseCategory };
 type AdminWorkspaceProps = {
   locale: Locale;
@@ -74,7 +74,6 @@ type AdminWorkspaceProps = {
     settings: SiteSettings;
     articles: NewsArticle[];
     tournaments: Tournament[];
-    teams: TeamWithPlayers[];
     players: Player[];
     rules: RuleSection[];
     categories: HorseCategory[];
@@ -83,17 +82,40 @@ type AdminWorkspaceProps = {
     members: FederationMember[];
     aboutPhotos: AboutPhoto[];
     milestones: HistoryMilestone[];
+    mediaItems: MediaItem[];
   };
 };
 
-export const adminTabs = ["overview", "settings", "news", "tournaments", "teams", "rules", "horses", "federation", "inquiries"] as const;
+export const adminTabs = ["overview", "settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "inquiries"] as const;
 export type AdminTab = (typeof adminTabs)[number];
 
 // The public page the preview pane opens for each admin section.
 const previewPaths: Record<AdminTab, string> = {
-  overview: "", settings: "", news: "/news", tournaments: "/calendar", teams: "/teams",
+  overview: "", settings: "", news: "/news", tournaments: "/calendar", players: "/players", media: "/media",
   rules: "/rules", horses: "/horses", federation: "/about", inquiries: "",
 };
+
+// Felt-panel symbols for rules (key matches components/rules-page.tsx).
+const symbolOptions: [string, string, string][] = [
+  ["", "Автоматтык", "Автоматически"], ["horn", "Кочкор мүйүз", "Бараньи рога"], ["rosette", "Төрт мүйүз", "Розетка"],
+  ["tunduk", "Түндүк", "Тюндюк"], ["horse", "Ат башы", "Голова коня"], ["shyrdak", "Шырдак оюму", "Узор шырдака"], ["emblem", "Федерациянын белгиси", "Эмблема федерации"],
+];
+
+const mediaCategories: [string, string, string][] = [
+  ["tournaments", "Турнирлер", "Турниры"], ["players", "Оюнчулар", "Игроки"], ["horses", "Жылкылар", "Лошади"], ["federation", "Федерация", "Федерация"],
+];
+
+function MediaFields({ item, labels, locale, nextOrder }: { item?: MediaItem; labels: typeof ui.ky | typeof ui.ru; locale: Locale; nextOrder: number }) {
+  return <div className="admin-form-grid">
+    <Field name="imageUrl" label={labels.image} value={item?.imageUrl} />
+    <Field name="videoUrl" label={labels.videoUrl} value={item?.videoUrl} required={false} />
+    <Pair field="caption" label={labels.caption} ky={item?.captionKy} ru={item?.captionRu} />
+    <label className="admin-field">{labels.mediaCategory}<select name="category" defaultValue={item?.category ?? "tournaments"}>
+      {mediaCategories.map(([key, ky, ru]) => <option key={key} value={key}>{locale === "ky" ? ky : ru}</option>)}
+    </select></label>
+    <Field name="sortOrder" label="#" type="number" value={item?.sortOrder ?? nextOrder} />
+  </div>;
+}
 
 const ui = {
   ky: {
@@ -102,7 +124,11 @@ const ui = {
     settings: "Башкы бет",
     news: "Жаңылыктар",
     tournaments: "Мелдештер",
-    teams: "Командалар жана оюнчулар",
+    players: "Оюнчулар",
+    media: "Медиа",
+    videoUrl: "YouTube шилтемеси (кааласаңыз)",
+    mediaCategory: "Бөлүмү",
+    mediaHint: "Медиа бөлүмү бош турганда, сайт сүрөттөрдү жаңылыктардан, оюнчулардан жана жылкылардан өзү чогултат.",
     rules: "Оюндун эрежелери",
     horses: "Ат каталогу",
     inquiries: "Билдирүүлөр",
@@ -128,7 +154,7 @@ const ui = {
     address: "Дарек",
     articles: "Жарыяланган жаңылыктар",
     schedule: "Календарь жана жыйынтыктар",
-    teamsSection: "Клубдар",
+    playersTitle: "Оюнчулар бөлүмүнүн аталышы",
     playersSection: "Оюнчулар",
     rulesSection: "Эреже бөлүмдөрү",
     categories: "Ат категориялары",
@@ -151,14 +177,17 @@ const ui = {
     position: "Оюндагы орду",
     number: "Номер",
     biography: "Оюнчу жөнүндө",
-    team: "Команда",
+    club: "Клубу (кааласаңыз)",
+    city: "Шаары (карточканын алдында)",
+    symbol: "Белгиси (кийиз панелинде)",
+    birthYear: "Туулган жылы (кааласаңыз)",
+    achievements: "Жетишкендиктери (карточканын артында)",
     age: "Жашы",
     location: "Жайгашкан жери",
     price: "Баасы · сом",
     sellerName: "Сатуучунун аты (кааласаңыз)",
     sellerPhone: "Сатуучунун телефону (сайтта көрсөтүлөт)",
     category: "Категория",
-    noTeams: "Оюнчу кошуудан мурда команда түзүңүз.",
     unread: "Жаңы",
     handled: "Каралды",
     markHandled: "Каралды деп белгилөө",
@@ -202,7 +231,11 @@ const ui = {
     settings: "Главная страница",
     news: "Новости",
     tournaments: "Соревнования",
-    teams: "Команды и игроки",
+    players: "Игроки",
+    media: "Медиа",
+    videoUrl: "Ссылка YouTube (по желанию)",
+    mediaCategory: "Раздел",
+    mediaHint: "Пока раздел пуст, сайт сам собирает фото из новостей, игроков и лошадей.",
     rules: "Правила игры",
     horses: "Каталог лошадей",
     inquiries: "Обращения",
@@ -228,7 +261,7 @@ const ui = {
     address: "Адрес",
     articles: "Опубликованные новости",
     schedule: "Календарь и результаты",
-    teamsSection: "Клубы",
+    playersTitle: "Заголовок раздела игроков",
     playersSection: "Игроки",
     rulesSection: "Разделы правил",
     categories: "Категории лошадей",
@@ -251,14 +284,17 @@ const ui = {
     position: "Игровая позиция",
     number: "Номер",
     biography: "Об игроке",
-    team: "Команда",
+    club: "Клуб (по желанию)",
+    city: "Город (лицевая сторона карточки)",
+    symbol: "Символ (на войлочной панели)",
+    birthYear: "Год рождения (по желанию)",
+    achievements: "Достижения (обратная сторона карточки)",
     age: "Возраст",
     location: "Местонахождение",
     price: "Цена · сом",
     sellerName: "Имя продавца (по желанию)",
     sellerPhone: "Телефон продавца (показывается на сайте)",
     category: "Категория",
-    noTeams: "Сначала создайте команду, затем добавляйте игроков.",
     unread: "Новое",
     handled: "Обработано",
     markHandled: "Отметить обработанным",
@@ -405,7 +441,6 @@ function datetimeLocal(date: Date) {
 
 export default function AdminWorkspace({ locale, username, tab, saved, error, preview, data }: AdminWorkspaceProps) {
   const labels = ui[locale];
-  const playersCount = data.teams.reduce((total, team) => total + team.players.length, 0);
   const unread = data.inquiries.filter((inquiry) => !inquiry.handled).length;
   const tabHref = (id: AdminTab, lang: Locale = locale) => `/admin?lang=${lang}${id === "overview" ? "" : `&tab=${id}`}`;
   const nav: [AdminTab, string, LucideIcon, number?][] = [
@@ -413,7 +448,8 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
     ["settings", labels.settings, Settings2],
     ["news", labels.news, Newspaper, data.articles.length],
     ["tournaments", labels.tournaments, CalendarDays, data.tournaments.length],
-    ["teams", labels.teams, UsersRound, data.teams.length],
+    ["players", labels.players, UsersRound, data.players.length],
+    ["media", labels.media, Images, data.mediaItems.length],
     ["rules", labels.rules, FileText, data.rules.length],
     ["horses", labels.horses, Tag, data.horses.length],
     ["federation", labels.federation, Landmark, data.members.length],
@@ -421,7 +457,7 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
   ];
   const titles: Record<AdminTab, string> = {
     overview: labels.dashboard, settings: labels.settingsTitle, news: labels.news, tournaments: labels.schedule,
-    teams: labels.teams, rules: labels.rulesSection, horses: labels.horses, federation: labels.federation, inquiries: labels.inquiries,
+    players: labels.players, media: labels.media, rules: labels.rulesSection, horses: labels.horses, federation: labels.federation, inquiries: labels.inquiries,
   };
 
   return (
@@ -475,11 +511,6 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
                   {id === "inquiries" && unread > 0 && <i>{unread}</i>}
                 </Link>
               ))}
-              <Link className="admin-metric" href={tabHref("teams")}>
-                <UsersRound size={18} aria-hidden="true" />
-                <strong>{playersCount}</strong>
-                <span>{labels.playersSection}</span>
-              </Link>
             </div>
           </>}
 
@@ -494,7 +525,7 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
                 <Pair field="aboutTitle" label={labels.aboutTitle} ky={data.settings.aboutTitleKy} ru={data.settings.aboutTitleRu} />
                 <Pair field="aboutText" label={labels.aboutText} ky={data.settings.aboutTextKy} ru={data.settings.aboutTextRu} multiline />
                 <Pair field="calendarTitle" label={labels.tournaments} ky={data.settings.calendarTitleKy} ru={data.settings.calendarTitleRu} />
-                <Pair field="teamTitle" label={labels.teamsSection} ky={data.settings.teamTitleKy} ru={data.settings.teamTitleRu} />
+                <Pair field="teamTitle" label={labels.playersTitle} ky={data.settings.teamTitleKy} ru={data.settings.teamTitleRu} />
                 <Pair field="newsTitle" label={labels.news} ky={data.settings.newsTitleKy} ru={data.settings.newsTitleRu} />
                 <Pair field="rulesTitle" label={labels.rulesSection} ky={data.settings.rulesTitleKy} ru={data.settings.rulesTitleRu} />
                 <Pair field="horsesTitle" label={labels.horses} ky={data.settings.horsesTitleKy} ru={data.settings.horsesTitleRu} />
@@ -570,81 +601,76 @@ export default function AdminWorkspace({ locale, username, tab, saved, error, pr
             </EditDetails>)}
           </section>}
 
-          {tab === "teams" && <section className="admin-section">
+          {tab === "players" && <section className="admin-section">
             <EditDetails title={`+ ${labels.newItem}`} isNew>
-              <form action={saveTeamAction} className="admin-form">
+              <form action={savePlayerAction} className="admin-form">
                 <input type="hidden" name="locale" value={locale} />
                 <div className="admin-form-grid">
-                  <Pair field="name" label={labels.name} />
-                  <Pair field="location" label={labels.location} />
-                  <Pair field="description" label={labels.description} multiline />
-                  <Field name="imageUrl" label={labels.image} />
+                  <Field name="name" label={labels.name} />
+                  <Field name="number" label={labels.number} type="number" required={false} />
+                  <Pair field="position" label={labels.position} />
+                  <Pair field="club" label={labels.club} required={false} />
+                  <Pair field="city" label={labels.city} required={false} />
+                  <Field name="birthYear" label={labels.birthYear} type="number" required={false} />
+                  <Pair field="achievements" label={labels.achievements} multiline required={false} />
+                  <Pair field="bio" label={labels.biography} multiline required={false} />
+                  <Field name="imageUrl" label={labels.image} required={false} />
                 </div>
                 <PublishToggle label={labels.published} />
                 <FormButtons save={labels.save} isNew labels={labels} />
               </form>
             </EditDetails>
-            {data.teams.map((team) => <EditDetails key={team.id} title={team.nameKy}>
-              <form action={saveTeamAction} className="admin-form">
-                <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={team.id} />
+            {data.players.map((player) => <EditDetails key={player.id} title={`${player.number !== null ? `${player.number} · ` : ""}${player.name}`}>
+              <form action={savePlayerAction} className="admin-form">
+                <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={player.id} />
                 <div className="admin-form-grid">
-                  <Pair field="name" label={labels.name} ky={team.nameKy} ru={team.nameRu} />
-                  <Pair field="location" label={labels.location} ky={team.locationKy} ru={team.locationRu} />
-                  <Pair field="description" label={labels.description} ky={team.descriptionKy} ru={team.descriptionRu} multiline />
-                  <Field name="imageUrl" label={labels.image} value={team.imageUrl} />
+                  <Field name="name" label={labels.name} value={player.name} />
+                  <Field name="number" label={labels.number} type="number" value={player.number ?? ""} required={false} />
+                  <Pair field="position" label={labels.position} ky={player.positionKy} ru={player.positionRu} />
+                  <Pair field="club" label={labels.club} ky={player.clubKy} ru={player.clubRu} required={false} />
+                  <Pair field="city" label={labels.city} ky={player.cityKy} ru={player.cityRu} required={false} />
+                  <Field name="birthYear" label={labels.birthYear} type="number" value={player.birthYear ?? ""} required={false} />
+                  <Pair field="achievements" label={labels.achievements} ky={player.achievementsKy} ru={player.achievementsRu} multiline required={false} />
+                  <Pair field="bio" label={labels.biography} ky={player.bioKy} ru={player.bioRu} multiline required={false} />
+                  <Field name="imageUrl" label={labels.image} value={player.imageUrl} required={false} />
                 </div>
-                <PublishToggle label={labels.published} checked={team.published} />
-                <FormButtons save={labels.save} isNew={false} action={deleteTeamAction} id={team.id} labels={labels} />
+                <PublishToggle label={labels.published} checked={player.published} />
+                <FormButtons save={labels.save} isNew={false} action={deletePlayerAction} id={player.id} labels={labels} />
               </form>
             </EditDetails>)}
+            {!data.players.length && <p className="admin-empty-note">{labels.empty}</p>}
+          </section>}
 
-            <h3 className="admin-subheading admin-subheading-spaced" id="players">{labels.playersSection} <span>{playersCount}</span></h3>
-            {data.teams.length ? <>
-              <EditDetails title={`+ ${labels.newItem}`} isNew>
-                <form action={savePlayerAction} className="admin-form">
-                  <input type="hidden" name="locale" value={locale} />
-                  <div className="admin-form-grid">
-                    <Field name="name" label={labels.name} />
-                    <Field name="number" label={labels.number} type="number" required={false} />
-                    <Pair field="position" label={labels.position} />
-                    <label className="admin-field">{labels.team}<select name="teamId" required defaultValue=""><option value="" disabled>—</option>{data.teams.map((team) => <option value={team.id} key={team.id}>{team.nameKy}</option>)}</select></label>
-                    <Pair field="bio" label={labels.biography} multiline />
-                    <Field name="imageUrl" label={labels.image} required={false} />
-                  </div>
-                  <PublishToggle label={labels.published} />
-                  <FormButtons save={labels.save} isNew labels={labels} />
-                </form>
-              </EditDetails>
-              {data.players.map((player) => <EditDetails key={player.id} title={player.name}>
-                <form action={savePlayerAction} className="admin-form">
-                  <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={player.id} />
-                  <div className="admin-form-grid">
-                    <Field name="name" label={labels.name} value={player.name} />
-                    <Field name="number" label={labels.number} type="number" value={player.number ?? ""} required={false} />
-                    <Pair field="position" label={labels.position} ky={player.positionKy} ru={player.positionRu} />
-                    <label className="admin-field">{labels.team}<select name="teamId" required defaultValue={player.teamId}>{data.teams.map((team) => <option value={team.id} key={team.id}>{team.nameKy}</option>)}</select></label>
-                    <Pair field="bio" label={labels.biography} ky={player.bioKy} ru={player.bioRu} multiline />
-                    <Field name="imageUrl" label={labels.image} value={player.imageUrl} required={false} />
-                  </div>
-                  <PublishToggle label={labels.published} checked={player.published} />
-                  <FormButtons save={labels.save} isNew={false} action={deletePlayerAction} id={player.id} labels={labels} />
-                </form>
-              </EditDetails>)}
-            </> : <p className="admin-empty-note">{labels.noTeams}</p>}
+          {tab === "media" && <section className="admin-section">
+            {!data.mediaItems.length && <p className="admin-empty-note">{labels.mediaHint}</p>}
+            <EditDetails title={`+ ${labels.newItem}`} isNew>
+              <form action={saveMediaAction} className="admin-form">
+                <input type="hidden" name="locale" value={locale} />
+                <MediaFields labels={labels} locale={locale} nextOrder={data.mediaItems.length + 1} />
+                <PublishToggle label={labels.published} /><FormButtons save={labels.save} isNew labels={labels} />
+              </form>
+            </EditDetails>
+            {data.mediaItems.map((item) => <EditDetails key={item.id} title={`${item.sortOrder} · ${locale === "ky" ? item.captionKy : item.captionRu}`}>
+              <form action={saveMediaAction} className="admin-form">
+                <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={item.id} />
+                <MediaFields item={item} labels={labels} locale={locale} nextOrder={item.sortOrder} />
+                <PublishToggle label={labels.published} checked={item.published} /><FormButtons save={labels.save} isNew={false} action={deleteMediaAction} id={item.id} labels={labels} />
+              </form>
+            </EditDetails>)}
           </section>}
 
           {tab === "rules" && <section className="admin-section">
             <EditDetails title={`+ ${labels.newItem}`} isNew>
               <form action={saveRuleAction} className="admin-form">
                 <input type="hidden" name="locale" value={locale} />
-                <div className="admin-form-grid"><Pair field="title" label={labels.title} /><Field name="sortOrder" label="#" type="number" value={data.rules.length + 1} /><Pair field="body" label={labels.body} multiline rows={4} /></div>
+                <div className="admin-form-grid"><Pair field="title" label={labels.title} /><Field name="sortOrder" label="#" type="number" value={data.rules.length + 1} /><label className="admin-field">{labels.symbol}<select name="symbol" defaultValue={""}>{symbolOptions.map(([key, ky, ru]) => <option key={key} value={key}>{locale === "ky" ? ky : ru}</option>)}</select></label><Pair field="body" label={labels.body} multiline rows={4} /></div>
                 <PublishToggle label={labels.published} /><FormButtons save={labels.save} isNew labels={labels} />
               </form>
             </EditDetails>
             {data.rules.map((rule) => <EditDetails key={rule.id} title={rule.titleKy}>
               <form action={saveRuleAction} className="admin-form">
                 <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={rule.id} />
-                <div className="admin-form-grid"><Pair field="title" label={labels.title} ky={rule.titleKy} ru={rule.titleRu} /><Field name="sortOrder" label="#" type="number" value={rule.sortOrder} /><Pair field="body" label={labels.body} ky={rule.bodyKy} ru={rule.bodyRu} multiline rows={4} /></div>
+                <div className="admin-form-grid"><Pair field="title" label={labels.title} ky={rule.titleKy} ru={rule.titleRu} /><Field name="sortOrder" label="#" type="number" value={rule.sortOrder} /><label className="admin-field">{labels.symbol}<select name="symbol" defaultValue={rule.symbol}>{symbolOptions.map(([key, ky, ru]) => <option key={key} value={key}>{locale === "ky" ? ky : ru}</option>)}</select></label><Pair field="body" label={labels.body} ky={rule.bodyKy} ru={rule.bodyRu} multiline rows={4} /></div>
                 <PublishToggle label={labels.published} checked={rule.published} /><FormButtons save={labels.save} isNew={false} action={deleteRuleAction} id={rule.id} labels={labels} />
               </form>
             </EditDetails>)}

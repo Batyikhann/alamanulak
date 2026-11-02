@@ -22,11 +22,11 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   if (!accountExists) return <AuthPanel locale={locale} mode="setup" />;
   if (!(await isAdminAuthenticated())) return <AuthPanel locale={locale} mode="login" />;
 
-  const [settings, articles, tournaments, teams, rules, categories, horses, inquiries, members, aboutPhotos, milestones] = await Promise.all([
+  const [settings, articles, tournaments, players, rules, categories, horses, inquiries, members, aboutPhotos, milestones, mediaItems] = await Promise.all([
     db.siteSettings.findUnique({ where: { id: "main" } }),
     db.newsArticle.findMany({ orderBy: { createdAt: "desc" } }),
     db.tournament.findMany({ orderBy: { startsAt: "desc" } }),
-    db.team.findMany({ include: { players: { orderBy: { number: "asc" } } }, orderBy: { nameKy: "asc" } }),
+    db.player.findMany({ orderBy: [{ clubKy: "asc" }, { number: "asc" }, { name: "asc" }] }),
     db.ruleSection.findMany({ orderBy: { sortOrder: "asc" } }),
     db.horseCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     db.horseListing.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),
@@ -34,6 +34,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     db.federationMember.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
     db.aboutPhoto.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
     db.historyMilestone.findMany({ orderBy: { year: "asc" } }),
+    db.mediaItem.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }] }),
   ]);
 
   if (!settings) notFound();
@@ -60,8 +61,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         settings,
         articles,
         tournaments,
-        teams,
-        players: teams.flatMap((team) => team.players),
+        players,
         rules,
         categories,
         horses,
@@ -69,6 +69,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         members,
         aboutPhotos,
         milestones,
+        mediaItems,
       }}
     />
   );
