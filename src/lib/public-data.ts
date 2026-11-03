@@ -14,6 +14,7 @@ export async function getPublicData() {
     db.player.findMany({
       where: { published: true },
       orderBy: [{ clubKy: "asc" }, { number: "asc" }, { name: "asc" }],
+      include: { cards: { orderBy: { date: "desc" }, include: { tournament: { select: { titleKy: true, titleRu: true } } } } },
     }),
     db.ruleSection.findMany({
       where: { published: true },

@@ -20,9 +20,13 @@ Open `http://localhost:3000`. The public site starts in Kyrgyz; use the language
 
 On the first visit to `/admin`, create the federation's one admin account. Use a unique password with at least 12 characters. The account is created only once; no demo credentials are shipped. In production, set `ADMIN_SETUP_KEY` before first setup and enter that key on the setup screen. First-admin setup is disabled in production when this key is missing.
 
+After signing in at `/admin`, the admin sees the normal site with their avatar in the header (beside the light/dark switch, or inside the burger menu on smaller screens). The avatar opens the management settings at `/admin/settings`; the admin's name and photo are set in the Profile section there. The Profile section also changes the sign-in username and password: the current password confirms the change, a new password needs at least 12 characters, and the admin stays signed in on that device.
+
+Photos are uploaded from the admin forms (pick or drag a photo; Media and the federation's photo archive take several at once). The admin's browser shrinks large photos to at most 2000px, and they are stored in the database (`UploadedImage`) and served at `/api/images/<id>`, because the host's disk does not survive deploys.
+
 ## Admin content
 
-The dashboard manages bilingual site headings and contact details, news, tournaments and results, clubs and players, rules, horse categories and listings, and incoming inquiries. Both language versions are required for publishable content. Traders contact the federation through the inquiry form; the site does not process payments.
+The dashboard manages bilingual site headings and contact details, news, tournaments (each with three prize places: the prize on offer and, once it ends, the winning team), clubs and players, rules, and horse categories and listings. Both language versions are required for publishable content. The horse bazaar shows each listing as its YouTube video (uploaded to the federation's channel, the link pasted in the listing); a photo is shown only until the video is added. A contact button over each video opens the seller's phone, WhatsApp, Telegram and Instagram, entered with the listing; listings without seller contacts offer the federation's own contacts instead. The site does not process payments.
 
 ## Deployment
 

@@ -68,6 +68,19 @@ export async function loginAdmin(username: string, password: string) {
   return true;
 }
 
+// The admin changes their own sign-in username and/or password, confirming with the current password.
+// A new session starts (the old token stops working), so the admin stays signed in on this device only.
+export async function changeAdminCredentials(currentPassword: string, username: string, newPassword: string) {
+  const admin = await db.adminAccount.findUnique({ where: { id: ADMIN_ID } });
+  if (!admin || !(await passwordMatches(currentPassword, admin.passwordHash))) return false;
+  await db.adminAccount.update({
+    where: { id: ADMIN_ID },
+    data: { username, ...(newPassword ? { passwordHash: await passwordHash(newPassword) } : {}) },
+  });
+  await beginSession();
+  return true;
+}
+
 export async function isAdminAuthenticated() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
@@ -102,4 +115,11 @@ export async function currentAdminUsername() {
     select: { username: true },
   });
   return admin?.username ?? null;
+}
+
+// The signed-in admin's name and photo for the site header, or null for everyone else.
+export async function getAdminProfile() {
+  if (!(await isAdminAuthenticated())) return null;
+  const admin = await db.adminAccount.findUnique({ where: { id: ADMIN_ID }, select: { username: true, displayName: true, photoUrl: true } });
+  return admin ? { name: admin.displayName || admin.username, photoUrl: admin.photoUrl } : null;
 }

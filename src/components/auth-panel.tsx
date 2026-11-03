@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, ShieldCheck } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import LocaleSync from "@/components/locale-sync";
@@ -26,6 +27,7 @@ const authCopy = {
     error: "Кирүү мүмкүн болгон жок. Маалыматты текшерип, кайра аракет кылыңыз.",
     publicSite: "Сайтка кайтуу",
     language: "RU",
+    theme: "Жарык же караңгы тема",
   },
   ru: {
     eyebrow: "УПРАВЛЕНИЕ ФЕДЕРАЦИЕЙ",
@@ -44,6 +46,7 @@ const authCopy = {
     error: "Не удалось войти. Проверьте данные и попробуйте ещё раз.",
     publicSite: "Вернуться на сайт",
     language: "КЫР",
+    theme: "Светлая или тёмная тема",
   },
 } as const;
 
@@ -84,7 +87,7 @@ export default function AuthPanel({ locale, mode }: AuthPanelProps) {
       setBusy(false);
       return;
     }
-    router.replace(`/admin?lang=${locale}`);
+    router.replace(`/${locale}`);
     router.refresh();
   }
 
@@ -92,8 +95,11 @@ export default function AuthPanel({ locale, mode }: AuthPanelProps) {
     <main className="admin-auth-shell">
       <LocaleSync locale={locale} />
       <header className="admin-auth-top">
-        <a className="brand-lockup" href={`/${locale}`}><span className="brand-mark">AU</span><span className="brand-name">Alaman <b>Ulak</b></span></a>
-        <a className="language-switch" href={`/admin?lang=${locale === "ky" ? "ru" : "ky"}`}>{copy.language}</a>
+        <a className="brand-lockup" href={`/${locale}`}><span className="brand-mark" aria-hidden="true" /><span className="brand-name">Alaman <b>Ulak</b></span></a>
+        <span className="admin-auth-actions">
+          <a className="language-switch" href={`/admin?lang=${locale === "ky" ? "ru" : "ky"}`}>{copy.language}</a>
+          <ThemeToggle label={copy.theme} className="admin-theme-toggle theme-toggle" />
+        </span>
       </header>
       <section className="auth-panel">
         <div className="auth-symbol"><ShieldCheck size={22} /></div>

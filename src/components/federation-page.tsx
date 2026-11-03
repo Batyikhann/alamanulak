@@ -9,6 +9,7 @@ import { copy, foundedYear, text } from "@/lib/i18n";
 import KeregeFillers from "@/components/kerege-fillers";
 import { latticeCell, latticeWidth } from "@/lib/kerege";
 import { kgMapSize, kgRegions } from "@/lib/kg-regions";
+import { demoPortrait } from "@/lib/portraits";
 
 // The "about" page is built like a боз үй: түндүк (mission and numbers), уук (leadership
 // radiating from the leader), кереге (photo lattice), the regions map and the жол timeline.
@@ -26,16 +27,10 @@ type FederationPageProps = {
   headerImage: string;
 };
 
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-}
-
 function MemberAvatar({ member, size }: { member: FederationMember; size: number }) {
   return (
     <span className="fed-avatar" style={{ "--avatar": `${size}px` } as CSSProperties}>
-      {member.photoUrl
-        ? <Image src={member.photoUrl} alt="" width={size * 2} height={size * 2} unoptimized />
-        : <span className="fed-avatar-initials">{initials(member.name)}</span>}
+      <Image src={member.photoUrl || demoPortrait(member.name)} alt="" width={size * 2} height={size * 2} unoptimized />
     </span>
   );
 }

@@ -11,6 +11,9 @@ model AdminAccount {
   id               String    @id @default(cuid())
   username         String    @unique
   passwordHash     String
+  // Shown in the site header for a signed-in admin: a name and a photo (initials when empty).
+  displayName      String    @default("")
+  photoUrl         String    @default("")
   sessionTokenHash String?
   sessionExpiresAt DateTime?
   createdAt        DateTime  @default(now())
@@ -30,6 +33,8 @@ model SiteSettings {
   aboutTextRu  String
   calendarTitleKy String @default("Кийинки беттештер")
   calendarTitleRu String @default("Ближайшие матчи")
+  calendarTextKy  String @default("Федерация жыл бою республикалык жана эл аралык улак тартыш мелдештерин уюштурат. Жазгы ачылыштан тартып Нооруз, Эгемендүүлүк күнү жана кышкы кубокторго чейин ар бир сезондун өз чабышы бар. Төмөндө алдагы мелдештер жана өткөн турнирлердин жыйынтыктары.")
+  calendarTextRu  String @default("Федерация круглый год проводит республиканские и международные турниры по улак тартышу. От весеннего открытия и Нооруза до Дня независимости и зимних кубков у каждого сезона свои состязания. Ниже — предстоящие турниры и итоги прошедших.")
   teamTitleKy String @default("Ат үстүндөгү биримдик")
   teamTitleRu String @default("Единство в седле")
   newsTitleKy String @default("Акыркы жаңылыктар")
@@ -46,6 +51,15 @@ model SiteSettings {
   addressRu    String
   socialUrl    String   @default("")
   heroImageUrl String
+  // The full-width photo band on the homepage, between tournaments and players: a photo, a title and a short
+  // line, plus an optional YouTube video that opens in the player. bandShown hides the whole band.
+  bandShown    Boolean  @default(true)
+  bandImageUrl String   @default("/images/hero-ulak.jpg")
+  bandTitleKy  String   @default("Улак тартыш — ата-бабадан калган мурас")
+  bandTitleRu  String   @default("Улак тартыш — наследие предков")
+  bandTextKy   String   @default("Тоо этегиндеги талаада чабандестер кылымдар бою ушундай чабышкан. Федерация бул салтты сактап, жаңы муунга өткөрөт.")
+  bandTextRu   String   @default("Так всадники состязались в горных долинах веками. Федерация хранит эту традицию и передаёт её новому поколению.")
+  bandVideoUrl String   @default("")
   updatedAt    DateTime @updatedAt
 }
 
@@ -72,11 +86,26 @@ model Tournament {
   locationRu      String
   startsAt        DateTime
   endsAt          DateTime
+  // Three prize places: the prize on offer (shown before the tournament) and the team that won it (after).
+  prize1Ky        String   @default("")
+  prize1Ru        String   @default("")
+  winner1Ky       String   @default("")
+  winner1Ru       String   @default("")
+  prize2Ky        String   @default("")
+  prize2Ru        String   @default("")
+  winner2Ky       String   @default("")
+  winner2Ru       String   @default("")
+  prize3Ky        String   @default("")
+  prize3Ru        String   @default("")
+  winner3Ky       String   @default("")
+  winner3Ru       String   @default("")
+  // An optional note on the result, e.g. the final's score.
   resultSummaryKy String   @default("")
   resultSummaryRu String   @default("")
   published       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  playerCards     PlayerCard[]
 }
 
 model Player {
@@ -97,6 +126,8 @@ model Player {
   birthYear      Int?
   achievementsKy String @default("")
   achievementsRu String @default("")
+  // Yellow and red cards the player has received, shown on the players page.
+  cards      PlayerCard[]
   published  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -137,26 +168,22 @@ model HorseListing {
   locationKy    String
   locationRu    String
   price         Int?
-  imageUrl      String
-  // Shown on the listing: buyers contact the seller directly, not the federation.
-  sellerName    String        @default("")
-  sellerPhone   String        @default("")
+  // The listing is shown as its YouTube video (uploaded to the federation's channel); the photo is used
+  // only while there is no video.
+  videoUrl      String        @default("")
+  imageUrl      String        @default("")
+  // Shown behind the "contact" button over the video: buyers contact the seller directly, not the federation.
+  // Telegram and Instagram are kept as usernames (without @).
+  sellerName      String      @default("")
+  sellerPhone     String      @default("")
+  sellerWhatsapp  String      @default("")
+  sellerTelegram  String      @default("")
+  sellerInstagram String      @default("")
   categoryId    String
   category      HorseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   published     Boolean       @default(false)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
-}
-
-model ContactInquiry {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String
-  email     String   @default("")
-  message   String
-  locale    String   @default("ky")
-  handled   Boolean  @default(false)
-  createdAt DateTime @default(now())
 }
 
 // People shown on the "about" page. kind: "leader" sits in the түндүк (one expected),
@@ -215,4 +242,31 @@ model MediaItem {
   published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// A yellow or red card a player received: when, optionally at which tournament, and why.
+model PlayerCard {
+  id           String      @id @default(cuid())
+  playerId     String
+  player       Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  color        String      // "yellow" | "red"
+  date         DateTime
+  tournamentId String?
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
+  reasonKy     String      @default("")
+  reasonRu     String      @default("")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([playerId])
+}
+
+// A photo the admin uploaded, kept in the database (the host's disk is wiped on every deploy) and served at
+// /api/images/<id>. The admin's browser shrinks large photos before uploading.
+model UploadedImage {
+  id          String   @id @default(cuid())
+  contentType String
+  size        Int
+  data        Bytes
+  createdAt   DateTime @default(now())
 }

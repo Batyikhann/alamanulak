@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import HomeExperience from "@/components/home-experience";
+import { getAdminProfile } from "@/lib/auth";
 import { getNewsPage, getPublicData } from "@/lib/public-data";
 import type { Locale, PublicSection } from "@/lib/i18n";
 
@@ -21,12 +22,12 @@ export default async function PublicSectionPage({ params, searchParams }: Sectio
 
   const locale: Locale = localeParam;
   const section = sectionParam as PublicSection;
-  const data = await getPublicData();
+  const [data, admin] = await Promise.all([getPublicData(), getAdminProfile()]);
   if (!data.settings) notFound();
 
   const newsPage = section === "news"
     ? await getNewsPage(Number(typeof query.page === "string" ? query.page : 1) || 1, query.archive === "1")
     : undefined;
 
-  return <HomeExperience locale={locale} section={section} newsPage={newsPage} {...data} settings={data.settings} />;
+  return <HomeExperience locale={locale} section={section} newsPage={newsPage} admin={admin} {...data} settings={data.settings} />;
 }

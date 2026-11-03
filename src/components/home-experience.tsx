@@ -2,7 +2,6 @@
 
 import {
   ArrowRight,
-  BadgeCheck,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -13,13 +12,13 @@ import {
   Images,
   Info,
   Mail,
-  Map as MapIcon,
   MapPin,
   Menu,
   MessageCircle,
   Moon,
   Newspaper,
   Phone,
+  Play,
   Ribbon,
   Search,
   Store,
@@ -34,10 +33,14 @@ import {
 import Image from "next/image";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import FederationPage from "@/components/federation-page";
-import MediaPage, { type MediaCategory, type MediaEntry } from "@/components/media-page";
+import HomeBand from "@/components/home-band";
+import KeregeFillers from "@/components/kerege-fillers";
+import MediaPage, { youtubeId, type MediaCategory, type MediaEntry, type MediaVideo } from "@/components/media-page";
 import RulesPage from "@/components/rules-page";
 import TournamentsPage from "@/components/tournaments-page";
 import LocaleSync from "@/components/locale-sync";
+import { MultiSelect } from "@/components/multi-select";
+import BazaarVideos from "@/components/bazaar-videos";
 import type {
   AboutPhoto,
   FederationMember,
@@ -47,12 +50,16 @@ import type {
   HorseListing,
   NewsArticle,
   Player,
+  PlayerCard,
   RuleSection,
   SiteSettings,
   Tournament,
 } from "@prisma/client";
 import type { Locale, PublicSection } from "@/lib/i18n";
 import { copy, foundedYear, text } from "@/lib/i18n";
+import { latticeCell } from "@/lib/kerege";
+import { toggleTheme } from "@/components/theme-toggle";
+import { demoPortrait } from "@/lib/portraits";
 
 type LocalizedArticle = Omit<NewsArticle, "publishedAt"> & {
   publishedAt: string | null;
@@ -64,7 +71,10 @@ type LocalizedTournament = Omit<Tournament, "startsAt" | "endsAt"> & {
 };
 type HorseWithCategory = HorseListing & { category: HorseCategory };
 type Labels = (typeof copy)[Locale];
-type PriceBand = "any" | "low" | "mid" | "high";
+type PriceBand = "low" | "mid" | "high";
+type PlayerFilterKey = "club" | "city" | "position";
+// Each filter holds the ticked values; an empty list means "any".
+const noPlayerFilters: Record<PlayerFilterKey, string[]> = { club: [], city: [], position: [] };
 type HeroSlide = {
   key: string;
   image: string;
@@ -83,10 +93,12 @@ type HomeExperienceProps = {
   locale: Locale;
   section?: PublicSection;
   newsPage?: NewsPage;
+  // The signed-in admin (null for visitors): their avatar in the header opens the admin settings.
+  admin?: { name: string; photoUrl: string } | null;
   settings: SiteSettings;
   articles: LocalizedArticle[];
   tournaments: LocalizedTournament[];
-  players: Player[];
+  players: PlayerWithCards[];
   rules: RuleSection[];
   categories: HorseCategory[];
   horses: HorseWithCategory[];
@@ -120,20 +132,11 @@ const monthLabels: Record<Locale, string[]> = {
 };
 
 
-const priceBands: Record<Exclude<PriceBand, "any">, [number, number]> = {
+const priceBands: Record<PriceBand, [number, number]> = {
   low: [0, 800000],
   mid: [800000, 1500000],
   high: [1500000, Number.POSITIVE_INFINITY],
 };
-
-// The theme lives on <html data-theme>; the inline script in app/layout.tsx restores it before paint.
-function toggleTheme() {
-  const root = document.documentElement;
-  const next = root.dataset.theme === "light" ? "dark" : "light";
-  if (next === "light") root.dataset.theme = "light";
-  else delete root.dataset.theme;
-  try { localStorage.setItem("theme", next); } catch {}
-}
 
 function dateLabel(value: string, locale: Locale, withYear = false) {
   const date = new Date(value);
@@ -151,35 +154,31 @@ function moneyLabel(value: number | null, locale: Locale, som: string) {
   return `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ${som}`;
 }
 
-function DateBlock({ value, locale }: { value: string; locale: Locale }) {
+function dayMonth(value: string, locale: Locale) {
   const date = new Date(value);
-  return (
-    <span className="date-block">
-      <strong>{date.getUTCDate()}</strong>
-      <span>{monthLabels[locale][date.getUTCMonth()]}</span>
-      <small>{date.getUTCFullYear()}</small>
-    </span>
-  );
+  return `${date.getUTCDate()} ${monthLabels[locale][date.getUTCMonth()]}`;
 }
 
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-}
-
-// Player photo, or gold initials on a rosette when there is none; the shirt number sits on the edge.
+// Player photo, or a demo portrait until the admin uploads one; the shirt number sits on the edge.
 function PlayerPortrait({ player, size }: { player: Player; size: number }) {
   return (
     <span className="player-portrait" style={{ "--portrait": `${size}px` } as CSSProperties}>
-      {player.imageUrl
-        ? <Image src={player.imageUrl} alt="" width={size * 2} height={size * 2} unoptimized />
-        : <span className="player-initials">{initials(player.name)}</span>}
+      <Image src={player.imageUrl || demoPortrait(player.name)} alt="" width={size * 2} height={size * 2} unoptimized />
       {player.number !== null && <span className="player-number">{player.number}</span>}
     </span>
   );
 }
 
 // A player's card: tap to turn it over for the details; it turns back by itself once it scrolls out of view.
-function PlayerFlipCard({ player, locale, labels }: { player: Player; locale: Locale; labels: Labels }) {
+// A player with their yellow and red cards, newest first (the admin preview passes them without tournaments).
+type PlayerWithCards = Player & { cards?: (PlayerCard & { tournament?: { titleKy: string; titleRu: string } | null })[] };
+
+// A yellow or red card as a small coloured rectangle, with a count or alone.
+function CardChip({ color, count }: { color: string; count?: number }) {
+  return <span className={`card-chip is-${color === "red" ? "red" : "yellow"}`} aria-hidden="true">{count}</span>;
+}
+
+function PlayerFlipCard({ player, locale, labels }: { player: PlayerWithCards; locale: Locale; labels: Labels }) {
   const [flipped, setFlipped] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
   const city = text(locale, player.cityKy, player.cityRu);
@@ -188,6 +187,9 @@ function PlayerFlipCard({ player, locale, labels }: { player: Player; locale: Lo
   const achievements = text(locale, player.achievementsKy, player.achievementsRu);
   const bio = text(locale, player.bioKy, player.bioRu);
   const age = player.birthYear ? new Date().getFullYear() - player.birthYear : null;
+  const cards = player.cards ?? [];
+  const yellow = cards.filter((card) => card.color !== "red").length;
+  const red = cards.length - yellow;
 
   useEffect(() => {
     const node = cardRef.current;
@@ -214,6 +216,10 @@ function PlayerFlipCard({ player, locale, labels }: { player: Player; locale: Lo
           {city && <span className="player-face-city"><MapPin size={13} />{city}</span>}
           {position && <span className="player-face-role">{position}</span>}
           {club && <span className="player-club">{club}</span>}
+          {cards.length > 0 && <span className="player-discipline" title={labels.cardsTitle}>
+            {yellow > 0 && <span><CardChip color="yellow" count={yellow} /><span className="sr-only">{labels.cardYellow}: {yellow}</span></span>}
+            {red > 0 && <span><CardChip color="red" count={red} /><span className="sr-only">{labels.cardRed}: {red}</span></span>}
+          </span>}
           <span className="player-flip-hint"><RotateCw size={13} />{labels.cardMore}</span>
         </span>
         <span className="player-face player-face-back" aria-hidden={!flipped}>
@@ -226,7 +232,19 @@ function PlayerFlipCard({ player, locale, labels }: { player: Player; locale: Lo
           </span>
           {achievements && <span className="player-back-block"><small>{labels.playerAchievements}</small>{achievements}</span>}
           {bio && <span className="player-back-block"><small>{labels.playerAbout}</small>{bio}</span>}
-          {!achievements && !bio && <span className="player-back-empty">{labels.playerNoDetails}</span>}
+          {/* Cards: the newest three, with the date, tournament and reason */}
+          {cards.length > 0 && <span className="player-back-block player-back-cards"><small>{labels.cardsTitle}</small>
+            {cards.slice(0, 3).map((card) => (
+              <span className="player-card-line" key={card.id}>
+                <CardChip color={card.color} />
+                <span><b>{card.color === "red" ? labels.cardRed : labels.cardYellow} · {numericDate(new Date(card.date).toISOString())}</b>
+                  {(card.tournament || card.reasonKy) && <em>{[card.tournament && text(locale, card.tournament.titleKy, card.tournament.titleRu), text(locale, card.reasonKy, card.reasonRu)].filter(Boolean).join(" · ")}</em>}
+                </span>
+              </span>
+            ))}
+            {cards.length > 3 && <span className="player-card-more">{labels.cardsMore.replace("{n}", String(cards.length - 3))}</span>}
+          </span>}
+          {!achievements && !bio && !cards.length && <span className="player-back-empty">{labels.playerNoDetails}</span>}
           <span className="player-flip-hint"><RotateCw size={13} />{labels.cardFront}</span>
         </span>
       </span>
@@ -256,24 +274,25 @@ function NewsPager({ newsPage, locale, labels }: { newsPage: NewsPage; locale: L
   );
 }
 
-function RowHeading({
-  title,
-  icon: Icon,
-  href,
-  linkLabel,
-  children,
-}: {
-  title: string;
-  icon?: LucideIcon;
-  href: string;
-  linkLabel: string;
-  children?: ReactNode;
-}) {
+// A home row's heading, centred like the about page's: a label between rosettes, the title, an
+// ornament band and a line about the section; tabs (if any) sit under it.
+// The signed-in admin's round avatar: their photo, or a demo picture until they upload one in the settings.
+function AdminAvatar({ admin }: { admin: { name: string; photoUrl: string } }) {
+  return (
+    <span className="admin-avatar" aria-hidden="true">
+      <Image src={admin.photoUrl || "/images/admin-demo.svg"} alt="" width={80} height={80} unoptimized />
+    </span>
+  );
+}
+
+function RowHeading({ eyebrow, title, subtitle, children }: { eyebrow: string; title: string; subtitle: string; children?: ReactNode }) {
   return (
     <div className="row-heading">
-      <h2>{Icon && <Icon size={22} />}{title}</h2>
+      <p className="row-heading-eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <span className="row-heading-band" aria-hidden="true"><i /></span>
+      <p className="row-heading-text">{subtitle}</p>
       {children}
-      <a href={href}>{linkLabel}<ArrowRight size={15} /></a>
     </div>
   );
 }
@@ -314,42 +333,11 @@ function RowTrack({ labels, children }: { labels: Labels; children: ReactNode })
   );
 }
 
-function HorseCard({
-  horse,
-  locale,
-  labels,
-}: {
-  horse: HorseWithCategory;
-  locale: Locale;
-  labels: Labels;
-}) {
-  const name = text(locale, horse.nameKy, horse.nameRu);
-  return (
-    <article className="horse-card">
-      <div className="horse-image-wrap">
-        <Image src={horse.imageUrl} alt={name} width={700} height={500} unoptimized />
-      </div>
-      <div className="horse-card-body">
-        <h3>{name}</h3>
-        <ul className="horse-facts">
-          <li><Ribbon size={15} />{text(locale, horse.category.nameKy, horse.category.nameRu)}</li>
-          <li><CalendarDays size={15} />{text(locale, horse.ageKy, horse.ageRu)}</li>
-          <li><MapPin size={15} />{text(locale, horse.locationKy, horse.locationRu)}</li>
-        </ul>
-        <strong className="horse-price">{moneyLabel(horse.price, locale, labels.som)}</strong>
-        {horse.sellerPhone && <div className="horse-seller">
-          {horse.sellerName && <span><User size={14} />{horse.sellerName}</span>}
-          <a className="button button-outline horse-contact" href={`tel:${horse.sellerPhone.replace(/[^+\d]/g, "")}`}><Phone size={15} />{horse.sellerPhone}</a>
-        </div>}
-      </div>
-    </article>
-  );
-}
-
 export default function HomeExperience({
   locale,
   section,
   newsPage,
+  admin,
   settings,
   articles,
   tournaments,
@@ -363,9 +351,12 @@ export default function HomeExperience({
   mediaItems,
 }: HomeExperienceProps) {
   const labels = copy[locale];
-  const [activeCategory, setActiveCategory] = useState("all");
-  const [activeRegion, setActiveRegion] = useState("all");
-  const [activePrice, setActivePrice] = useState<PriceBand>("any");
+  const [activeCategories, setActiveCategories] = useState<string[]>([]);
+  const [activeRegions, setActiveRegions] = useState<string[]>([]);
+  const [activePrices, setActivePrices] = useState<string[]>([]);
+  const [playerQuery, setPlayerQuery] = useState("");
+  const [playerFilters, setPlayerFilters] = useState(noPlayerFilters);
+  const [discipline, setDiscipline] = useState("all");
   const [eventTab, setEventTab] = useState<"upcoming" | "past">("upcoming");
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -375,12 +366,11 @@ export default function HomeExperience({
   const [slidePaused, setSlidePaused] = useState(false);
   const regions = [...new Set(horses.map((horse) => text(locale, horse.locationKy, horse.locationRu)))];
   const visibleHorses = horses.filter((horse) => {
-    if (activeCategory !== "all" && horse.categoryId !== activeCategory) return false;
-    if (activeRegion !== "all" && text(locale, horse.locationKy, horse.locationRu) !== activeRegion) return false;
-    if (activePrice !== "any") {
-      if (horse.price === null) return false;
-      const [min, max] = priceBands[activePrice];
-      if (horse.price < min || horse.price >= max) return false;
+    if (activeCategories.length && !activeCategories.includes(horse.categoryId)) return false;
+    if (activeRegions.length && !activeRegions.includes(text(locale, horse.locationKy, horse.locationRu))) return false;
+    if (activePrices.length) {
+      const price = horse.price;
+      if (price === null || !activePrices.some((band) => price >= priceBands[band as PriceBand][0] && price < priceBands[band as PriceBand][1])) return false;
     }
     return true;
   });
@@ -402,13 +392,8 @@ export default function HomeExperience({
     { icon: Users, value: String(players.length), label: labels.statPlayers },
     { icon: Trophy, value: String(tournaments.length), label: labels.statTournaments },
   ];
-  const horseFeatures: [LucideIcon, string][] = [
-    [BadgeCheck, labels.featureOne],
-    [Gem, labels.featureTwo],
-    [MapIcon, labels.featureThree],
-    [MessageCircle, labels.featureFour],
-  ];
-  const listedEvents = (eventTab === "upcoming" ? upcoming : past).slice(0, 3);
+  // The homepage shows at most six tournaments per tab; the rest are on the tournaments page.
+  const listedEvents = (eventTab === "upcoming" ? upcoming : past).slice(0, 6);
   const searchIndex: { title: string; kind: string; href: string }[] = [
     ...articles.map((item) => ({ title: text(locale, item.titleKy, item.titleRu), kind: labels.navNews, href: `/${locale}/news` })),
     ...tournaments.map((item) => ({ title: text(locale, item.titleKy, item.titleRu), kind: labels.navCalendar, href: `/${locale}/calendar` })),
@@ -428,10 +413,17 @@ export default function HomeExperience({
       { src: legacyImage, caption: labels.legacyTitle, category: "federation" },
       ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu), category: "tournaments" })),
       ...players.map((item) => ({ src: item.imageUrl, caption: item.name, category: "players" })),
-      ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu), category: "horses" })),
     ] as { src: string; caption: string; category: MediaCategory }[])
       .filter((item, index, list) => item.src && list.findIndex((other) => other.src === item.src) === index)
       .map((item) => ({ ...item, id: item.src }));
+  // The bazaar's photos (its header and every listing's) stay in the bazaar: they are not part of the media section.
+  const bazaarPhotos = new Set([marketImage, ...horses.map((horse) => horse.imageUrl)]);
+  const mediaGallery = gallery.filter((item) => item.category !== "horses" && !bazaarPhotos.has(item.src));
+  // The media page's videos: admin media items with a YouTube link (until there are some, the page shows demo videos).
+  const mediaVideos: MediaVideo[] = mediaItems.flatMap((item) => {
+    const id = youtubeId(item.videoUrl);
+    return id ? [{ id: item.id, youtubeId: id, title: text(locale, item.captionKy, item.captionRu), date: new Date(item.createdAt).toISOString() }] : [];
+  });
 
   // Home hero slides, in the spirit of a streaming-site carousel: federation, next event, latest news, horse market.
   const nextEvent = upcoming[0];
@@ -496,18 +488,10 @@ export default function HomeExperience({
     return () => window.clearTimeout(timer);
   }, [section, slidePaused, slideIndex, heroSlides.length]);
 
-  const latestMedia = [
-    ...articles.map((item) => ({ src: item.imageUrl, caption: text(locale, item.titleKy, item.titleRu), at: new Date(item.updatedAt).getTime() })),
-    ...horses.map((item) => ({ src: item.imageUrl, caption: text(locale, item.nameKy, item.nameRu), at: new Date(item.updatedAt).getTime() })),
-    ...players.map((item) => ({ src: item.imageUrl, caption: item.name, at: new Date(item.updatedAt).getTime() })),
-    { src: settings.heroImageUrl, caption: labels.heroKicker, at: new Date(settings.updatedAt).getTime() },
-    { src: federationImage, caption: labels.country, at: 0 },
-    { src: legacyImage, caption: labels.legacyTitle, at: 0 },
-  ]
-    .filter((item) => item.src)
-    .sort((a, b) => b.at - a.at)
-    .filter((item, index, list) => list.findIndex((other) => other.src === item.src) === index)
-    .slice(0, 6);
+  // The homepage's media row: the newest seven of the media page's items, as a view-only кереге lattice
+  // (4 diamonds per wide row, so seven make two full rows; ornament diamonds fill any places left empty).
+  const homeMedia = mediaGallery.slice(0, 7);
+  const homeMediaK = 4;
 
   // The header sits transparently over the photo header (home slider, horse market) until the page scrolls.
   const photoHeader = !section || section === "horses" || section === "about";
@@ -520,11 +504,32 @@ export default function HomeExperience({
   }, [photoHeader]);
 
 
-  function resetHorseFilters() {
-    setActiveCategory("all");
-    setActiveRegion("all");
-    setActivePrice("any");
-  }
+  // Players page filters: name, club, city, position and discipline (has yellow / has red / no cards).
+  const clubOptions = [...new Set(players.map((player) => text(locale, player.clubKy, player.clubRu)).filter(Boolean))].sort();
+  const cityOptions = [...new Set(players.map((player) => text(locale, player.cityKy, player.cityRu)).filter(Boolean))].sort();
+  const positionOptions = [...new Set(players.map((player) => text(locale, player.positionKy, player.positionRu)).filter(Boolean))].sort();
+  const disciplineOptions: [string, string][] = [["yellow", labels.disciplineYellow], ["red", labels.disciplineRed], ["clean", labels.disciplineClean]];
+  const playerFilterFields: [PlayerFilterKey, string, LucideIcon, [string, string][]][] = [
+    ["club", labels.playerClub, Flag, clubOptions.map((option) => [option, option])],
+    ["city", labels.playerCity, MapPin, cityOptions.map((option) => [option, option])],
+    ["position", labels.playerPosition, User, positionOptions.map((option) => [option, option])],
+  ];
+  const playerSearch = playerQuery.trim().toLocaleLowerCase();
+  const matchesDiscipline = (player: PlayerWithCards, discipline: string) => {
+    const cards = player.cards ?? [];
+    if (discipline === "yellow") return cards.some((card) => card.color !== "red");
+    if (discipline === "red") return cards.some((card) => card.color === "red");
+    if (discipline === "clean") return !cards.length;
+    return true;
+  };
+  // Players matching everything but the discipline: the discipline buttons count within these.
+  const filteredPlayers = players.filter((player) => (!playerSearch || player.name.toLocaleLowerCase().includes(playerSearch))
+    && (!playerFilters.club.length || playerFilters.club.includes(text(locale, player.clubKy, player.clubRu)))
+    && (!playerFilters.city.length || playerFilters.city.includes(text(locale, player.cityKy, player.cityRu)))
+    && (!playerFilters.position.length || playerFilters.position.includes(text(locale, player.positionKy, player.positionRu))));
+  const visiblePlayers = filteredPlayers.filter((player) => matchesDiscipline(player, discipline));
+  const disciplineButtons: [string, string][] = [["all", labels.anyOption], ...disciplineOptions];
+  const priceLabels: Record<PriceBand, string> = { low: labels.priceLow, mid: labels.priceMid, high: labels.priceHigh };
 
   return (
     <main className={`site-shell${section ? ` section-page section-page-${section}` : " home-page"}`}>
@@ -551,6 +556,10 @@ export default function HomeExperience({
             <Sun className="theme-icon-sun" size={19} aria-hidden="true" />
             <Moon className="theme-icon-moon" size={19} aria-hidden="true" />
           </button>
+          {/* The signed-in admin, beside the light/dark switch: opens the admin settings */}
+          {admin && <a className="admin-chip" href={`/admin/settings?lang=${locale}`} aria-label={`${labels.adminSettings}: ${admin.name}`} title={`${admin.name} · ${labels.adminSettings}`}>
+            <AdminAvatar admin={admin} />
+          </a>}
           <span className="header-divider" aria-hidden="true" />
           <button className="icon-button search-toggle" type="button" onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }} aria-label={labels.searchLabel} aria-expanded={searchOpen} aria-controls="site-search">
             {searchOpen ? <X size={20} /> : <Search size={20} />}
@@ -586,6 +595,12 @@ export default function HomeExperience({
               </a>
             );
           })}
+          {/* In the burger, the admin sits beside the light/dark switch as it does in the header */}
+          {admin && <a className="menu-drawer-admin" href={`/admin/settings?lang=${locale}`} onClick={() => setMenuOpen(false)}>
+            <AdminAvatar admin={admin} />
+            <span><strong>{admin.name}</strong><small>{labels.adminRole} · {labels.adminSettings}</small></span>
+            <ArrowRight size={17} aria-hidden="true" />
+          </a>}
           <button className="menu-drawer-theme" type="button" onClick={toggleTheme}>
             <Sun className="theme-icon-sun" size={19} aria-hidden="true" />
             <Moon className="theme-icon-moon" size={19} aria-hidden="true" />
@@ -688,68 +703,78 @@ export default function HomeExperience({
         </section>
 
         <section className="home-row">
-          <RowHeading title={labels.homeTournaments} icon={CalendarDays} href={`/${locale}/calendar`} linkLabel={labels.allTournaments}>
+          <RowHeading eyebrow={labels.wheelTitle} title={labels.homeTournaments} subtitle={labels.rowTournamentsText}>
             <div className="tabs" role="tablist">
               <button type="button" role="tab" aria-selected={eventTab === "upcoming"} className={eventTab === "upcoming" ? "is-active" : undefined} onClick={() => setEventTab("upcoming")}>{labels.upcomingTab}</button>
               <button type="button" role="tab" aria-selected={eventTab === "past"} className={eventTab === "past" ? "is-active" : undefined} onClick={() => setEventTab("past")}>{labels.pastTab}</button>
             </div>
           </RowHeading>
           <RowTrack labels={labels} key={eventTab}>
-            {(eventTab === "upcoming" ? upcoming : past).map((item) => (
-              <a className="row-card event-tile" key={item.id} href={`/${locale}/calendar`}>
-                <DateBlock value={item.startsAt} locale={locale} />
-                <span className="event-tile-info">
-                  <strong>{text(locale, item.titleKy, item.titleRu)}</strong>
-                  <small><MapPin size={13} />{text(locale, item.locationKy, item.locationRu)}</small>
-                  {item.isPast && text(locale, item.resultSummaryKy, item.resultSummaryRu) && <em><Trophy size={13} />{text(locale, item.resultSummaryKy, item.resultSummaryRu)}</em>}
+            {listedEvents.map((item) => (
+              // A tall poster: the date large on an ornamented top, then title, place, dates and result.
+              <a className={`row-card event-poster${item.isPast ? " is-past" : ""}`} key={item.id} href={`/${locale}/calendar`}>
+                <span className="event-poster-top">
+                  <span className="event-poster-status">{item.isPast ? labels.result : item.id === upcoming[0]?.id ? labels.nextRace : labels.upcoming}</span>
+                  <strong>{new Date(item.startsAt).getUTCDate()}</strong>
+                  <span>{monthLabels[locale][new Date(item.startsAt).getUTCMonth()]} {new Date(item.startsAt).getUTCFullYear()}</span>
                 </span>
-                <ArrowRight className="event-tile-arrow" size={17} />
+                <span className="event-poster-body">
+                  <strong>{text(locale, item.titleKy, item.titleRu)}</strong>
+                  <small><MapPin size={14} />{text(locale, item.locationKy, item.locationRu)}</small>
+                  <small><CalendarDays size={14} />{dayMonth(item.startsAt, locale)} — {dayMonth(item.endsAt, locale)}</small>
+                  {/* A finished tournament names its winner (1st place), or else the result note */}
+                  {item.isPast && (text(locale, item.winner1Ky, item.winner1Ru) || text(locale, item.resultSummaryKy, item.resultSummaryRu)) && <em><Trophy size={14} />{text(locale, item.winner1Ky, item.winner1Ru) || text(locale, item.resultSummaryKy, item.resultSummaryRu)}</em>}
+                  <span className="event-poster-more">{labels.openSection}<ArrowRight size={15} /></span>
+                </span>
               </a>
             ))}
           </RowTrack>
           {!listedEvents.length && <p className="empty-note row-empty">{locale === "ky" ? "Азырынча маалымат жок." : "Пока нет данных."}</p>}
+          <div className="row-action">
+            <a className="button button-outline" href={`/${locale}/calendar`}>{labels.allTournaments}<ArrowRight size={16} /></a>
+          </div>
         </section>
 
+        {settings.bandShown && <HomeBand image={settings.bandImageUrl} title={text(locale, settings.bandTitleKy, settings.bandTitleRu)}
+          text={text(locale, settings.bandTextKy, settings.bandTextRu)} videoUrl={settings.bandVideoUrl} eyebrow={settings.brandName} labels={labels} />}
+
+        {/* Players: a row of the players page's flip cards, the first eight */}
         <section className="home-row">
-          <RowHeading title={labels.homePlayers} icon={Users} href={`/${locale}/players`} linkLabel={labels.allPlayers} />
+          <RowHeading eyebrow={labels.rowPlayersLabel} title={labels.homePlayers} subtitle={labels.rowPlayersText} />
           <RowTrack labels={labels}>
-            {players.map((player) => (
-              <a className="row-card player-tile" key={player.id} href={`/${locale}/players`}>
-                <PlayerPortrait player={player} size={84} />
-                <strong>{player.name}</strong>
-                <small>{text(locale, player.positionKy, player.positionRu)}</small>
-                {text(locale, player.clubKy, player.clubRu) && <small className="player-club">{text(locale, player.clubKy, player.clubRu)}</small>}
-              </a>
+            {players.slice(0, 8).map((player) => (
+              <div className="row-card player-row-card" key={player.id}><PlayerFlipCard player={player} locale={locale} labels={labels} /></div>
             ))}
           </RowTrack>
+          {players.length > 0 && <div className="row-action">
+            <a className="button button-outline" href={`/${locale}/players`}>{labels.allPlayers}<ArrowRight size={16} /></a>
+          </div>}
           {!players.length && <p className="empty-note row-empty">{locale === "ky" ? "Азырынча маалымат жок." : "Пока нет данных."}</p>}
         </section>
 
-        {horses.length > 0 && <section className="home-row">
-          <RowHeading title={labels.featuredHorses} href={`/${locale}/horses`} linkLabel={labels.allHorses} />
-          <RowTrack labels={labels}>
-            <aside className="row-card horses-motto">
-              <span className="horses-motto-mark" aria-hidden="true" />
-              <p>{labels.goodHorse}</p>
-              <span className="horses-motto-mountains" aria-hidden="true" />
-            </aside>
-            {horses.map((horse) => (
-              <div className="row-card horse-tile" key={horse.id}>
-                <HorseCard horse={horse} locale={locale} labels={labels} />
-              </div>
-            ))}
-          </RowTrack>
-        </section>}
-
         <section className="home-row">
-          <RowHeading title={labels.homeMedia} href={`/${locale}/media`} linkLabel={labels.allMedia} />
-          <div className="media-grid">
-            {latestMedia.map((item) => (
-              <a className="media-card" key={item.src} href={`/${locale}/media`}>
-                <Image src={item.src} alt={item.caption} width={720} height={480} unoptimized />
-                <span>{item.caption}</span>
-              </a>
-            ))}
+          <RowHeading eyebrow={labels.rowMediaLabel} title={labels.homeMedia} subtitle={labels.rowMediaText} />
+          <div className="kerege home-kerege" style={{ "--cols-d": homeMediaK * 2, "--cols-m": 4 } as CSSProperties}>
+            <div className="kerege-grid">
+              {homeMedia.map((item, index) => {
+                const desktop = latticeCell(index, homeMediaK);
+                const mobile = latticeCell(index, 2);
+                return (
+                  <span className="kerege-cell" key={item.id}
+                    style={{ "--dc": desktop.col, "--dr": desktop.row, "--mc": mobile.col, "--mr": mobile.row } as CSSProperties}>
+                    <span className="kerege-photo">
+                      <Image src={item.src} alt={item.caption} width={800} height={800} unoptimized />
+                      {/* Marks a video; the lattice is view-only, so it does not play here */}
+                      {item.videoUrl && <span className="kerege-play" aria-hidden="true"><Play size={20} /></span>}
+                    </span>
+                  </span>
+                );
+              })}
+              <KeregeFillers count={homeMedia.length} desktopK={homeMediaK} usedPhotos={homeMedia.map((item) => item.src)} total={7} />
+            </div>
+          </div>
+          <div className="row-action">
+            <a className="button button-outline" href={`/${locale}/media`}>{labels.allMedia}<ArrowRight size={16} /></a>
           </div>
         </section>
       </>}
@@ -771,9 +796,37 @@ export default function HomeExperience({
         <div className="section-heading">
           <div><p className="eyebrow">{labels.playersLabel}</p><h2>{text(locale, settings.teamTitleKy, settings.teamTitleRu)}</h2></div>
         </div>
+        {/* Filter: name search, club, city, position and discipline (yellow / red cards), applied as you choose */}
+        {players.length > 0 && <div className="players-filter">
+          <div className="quick-find-bar players-filter-bar">
+            <label className="quick-field">
+              <span className="quick-field-label"><Search size={14} />{labels.playersSearch}</span>
+              <input type="search" value={playerQuery} onChange={(event) => setPlayerQuery(event.target.value)} placeholder={labels.playersSearchPlaceholder} />
+            </label>
+            {playerFilterFields.map(([key, label, Icon, options]) => (
+              <MultiSelect key={key} label={label} icon={Icon} options={options} value={playerFilters[key]} anyLabel={labels.anyOption}
+                onChange={(value) => setPlayerFilters({ ...playerFilters, [key]: value })} />
+            ))}
+          </div>
+          {/* Discipline: segmented buttons with card icons, each counting the players it would show */}
+          <div className="discipline-row">
+            <span className="quick-field-label"><Ribbon size={14} />{labels.filterDiscipline}</span>
+            <div className="discipline-buttons" role="group" aria-label={labels.filterDiscipline}>
+              {disciplineButtons.map(([value, label]) => (
+                <button type="button" key={value} className={discipline === value ? "is-active" : undefined} aria-pressed={discipline === value}
+                  onClick={() => setDiscipline(value)}>
+                  {(value === "yellow" || value === "red") && <CardChip color={value} />}
+                  {label}
+                  <span className="discipline-count">{filteredPlayers.filter((player) => matchesDiscipline(player, value)).length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>}
         <div className="player-grid">
-          {players.map((player) => <PlayerFlipCard key={player.id} player={player} locale={locale} labels={labels} />)}
+          {visiblePlayers.map((player) => <PlayerFlipCard key={player.id} player={player} locale={locale} labels={labels} />)}
           {!players.length && <p className="empty-note">{locale === "ky" ? "Оюнчулар жакында кошулат." : "Игроки скоро появятся."}</p>}
+          {players.length > 0 && !visiblePlayers.length && <p className="empty-note">{labels.noPlayersFound}</p>}
         </div>
       </section>}
 
@@ -801,14 +854,14 @@ export default function HomeExperience({
         <NewsPager newsPage={newsPage} locale={locale} labels={labels} />
       </section>}
 
-      {section === "media" && <MediaPage locale={locale} items={gallery} />}
+      {section === "media" && <MediaPage locale={locale} items={mediaGallery} videos={mediaVideos} channel={settings.brandName} />}
 
       {section === "rules" && <RulesPage locale={locale} settings={settings} rules={rules} />}
 
       {section === "horses" && <>
         <div className="hero-shell">
         <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
-        <section className="market-hero">
+        <section className="market-hero page-hero">
           <Image className="market-hero-image" src={marketImage} alt="" width={1672} height={941} priority unoptimized />
           {/* A short slide-style caption on the photo; the details follow below it */}
           <div className="photo-caption">
@@ -820,60 +873,35 @@ export default function HomeExperience({
               <a className="hero-round-link" href="#quick-find"><span><Search size={16} /></span>{labels.quickFind}</a>
             </div>
           </div>
-          <div className="market-hero-inner section-wrap">
-            <div className="market-hero-copy">
-              <p className="market-intro">{labels.horsesIntro}</p>
-              <ul className="market-features">
-                {horseFeatures.map(([Icon, label]) => <li key={label}><span><Icon size={20} /></span>{label}</li>)}
-              </ul>
-            </div>
-            <form className="card quick-find" id="quick-find" onSubmit={(event) => { event.preventDefault(); document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }); }}>
-              <h2>{labels.quickFind}</h2>
-              <label><Ribbon size={16} /><span className="sr-only">{labels.breed}</span>
-                <select value={activeCategory} onChange={(event) => setActiveCategory(event.target.value)}>
-                  <option value="all">{labels.breed}: {labels.anyOption}</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{text(locale, category.nameKy, category.nameRu)}</option>)}
-                </select>
-              </label>
-              <label><MapPin size={16} /><span className="sr-only">{labels.region}</span>
-                <select value={activeRegion} onChange={(event) => setActiveRegion(event.target.value)}>
-                  <option value="all">{labels.region}: {labels.anyOption}</option>
-                  {regions.map((region) => <option key={region} value={region}>{region}</option>)}
-                </select>
-              </label>
-              <label><Gem size={16} /><span className="sr-only">{labels.priceLabel}</span>
-                <select value={activePrice} onChange={(event) => setActivePrice(event.target.value as PriceBand)}>
-                  <option value="any">{labels.priceLabel}: {labels.priceAny}</option>
-                  <option value="low">{labels.priceLow}</option>
-                  <option value="mid">{labels.priceMid}</option>
-                  <option value="high">{labels.priceHigh}</option>
-                </select>
-              </label>
-              <button className="button button-accent" type="submit"><Search size={17} />{labels.search} · {visibleHorses.length}</button>
-              <button className="quick-find-reset" type="button" onClick={resetHorseFilters}>{labels.resetFilters}</button>
-            </form>
-          </div>
         </section>
         </div>
 
-        <section className="horses-section section-wrap" id="catalog">
-          <div className="catalog-toolbar">
-            <div className="category-filters" role="group" aria-label={labels.horsesTitle}>
-              <button className={activeCategory === "all" ? "filter-button is-active" : "filter-button"} type="button" onClick={() => setActiveCategory("all")}>{labels.allCategories}<span>{horses.length}</span></button>
-              {categories.map((category) => {
-                const count = horses.filter((horse) => horse.categoryId === category.id).length;
-                return <button className={activeCategory === category.id ? "filter-button is-active" : "filter-button"} type="button" key={category.id} onClick={() => setActiveCategory(category.id)}>{text(locale, category.nameKy, category.nameRu)}<span>{count}</span></button>;
-              })}
+        {/* Quick find: a full-width filter band under the header, above the horse videos */}
+        <div className="quick-find-band">
+          <form className="quick-find" id="quick-find" onSubmit={(event) => { event.preventDefault(); document.getElementById("catalog")?.scrollIntoView({ behavior: "smooth" }); }}>
+            <div className="quick-find-inner">
+              {/* One raised bar: each field shows its label above the value, the search button at the end */}
+              <div className="quick-find-bar">
+                <MultiSelect label={labels.breed} icon={Ribbon} value={activeCategories} onChange={setActiveCategories} anyLabel={labels.anyOption}
+                  options={categories.map((category) => [category.id, text(locale, category.nameKy, category.nameRu)])} />
+                <MultiSelect label={labels.region} icon={MapPin} value={activeRegions} onChange={setActiveRegions} anyLabel={labels.anyOption}
+                  options={regions.map((region) => [region, region])} />
+                <MultiSelect label={labels.priceLabel} icon={Gem} value={activePrices} onChange={setActivePrices} anyLabel={labels.priceAny}
+                  options={(Object.keys(priceLabels) as PriceBand[]).map((band) => [band, priceLabels[band]])} />
+                <button className="button button-accent quick-find-submit" type="submit"><Search size={18} />{labels.search}</button>
+              </div>
             </div>
-            <span className="listing-count">{visibleHorses.length} {locale === "ky" ? "жарыя" : "объявлений"}</span>
-          </div>
-          <div className="horse-grid">
-            {visibleHorses.map((horse) => (
-              <HorseCard key={horse.id} horse={horse} locale={locale} labels={labels} />
-            ))}
-          </div>
-          {!visibleHorses.length && <p className="empty-note horse-empty">{labels.noHorses}</p>}
-        </section>
+          </form>
+        </div>
+
+        {/* The catalogue (the listings as videos) shares the filter band's shade, so filter and videos read as one block */}
+        <div className="catalog-band">
+          <section className="horses-section section-wrap" id="catalog">
+            <BazaarVideos horses={visibleHorses} locale={locale} price={(value) => moneyLabel(value, locale, labels.som)}
+              contacts={{ phone: settings.contactPhone, email: settings.contactEmail, social: settings.socialUrl }} />
+            {!visibleHorses.length && <p className="empty-note horse-empty">{labels.noHorses}</p>}
+          </section>
+        </div>
       </>}
 
 

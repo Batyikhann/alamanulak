@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-// `--reset` replaces all public content (not the admin account or inquiries) with this set.
+// `--reset` replaces all public content (not the admin account) with this set.
 const reset = process.argv.includes("--reset");
 
 const images = {
@@ -27,6 +27,10 @@ const settings = {
     "Федерация Аламан-Улак — организация, созданная для развития, сохранения и популяризации национальной игры улак в мире. Наша миссия — передать национальные ценности будущим поколениям.",
   calendarTitleKy: "Турнирлер",
   calendarTitleRu: "Турниры",
+  calendarTextKy:
+    "Федерация жыл бою республикалык жана эл аралык улак тартыш мелдештерин уюштурат. Жазгы ачылыштан тартып Нооруз, Эгемендүүлүк күнү жана кышкы кубокторго чейин ар бир сезондун өз чабышы бар. Төмөндө алдагы мелдештер жана өткөн турнирлердин жыйынтыктары.",
+  calendarTextRu:
+    "Федерация круглый год проводит республиканские и международные турниры по улак тартышу. От весеннего открытия и Нооруза до Дня независимости и зимних кубков у каждого сезона свои состязания. Ниже — предстоящие турниры и итоги прошедших.",
   teamTitleKy: "Оюнчулар",
   teamTitleRu: "Игроки",
   newsTitleKy: "Жаңылыктар",

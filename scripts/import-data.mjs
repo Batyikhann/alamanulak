@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 // Parents before children, so relations resolve.
 const order = [
   "adminAccount", "siteSettings", "newsArticle", "tournament", "player", "ruleSection",
-  "horseCategory", "horseListing", "contactInquiry", "federationMember", "aboutPhoto", "historyMilestone",
+  "horseCategory", "horseListing", "federationMember", "aboutPhoto", "historyMilestone",
 ];
 const dateFields = new Set(["createdAt", "updatedAt", "publishedAt", "startsAt", "endsAt", "sessionExpiresAt"]);
 

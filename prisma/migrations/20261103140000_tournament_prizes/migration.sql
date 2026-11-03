@@ -1,0 +1,13 @@
+-- Tournaments get three prize places: the prize on offer and the winning team (several teams take part).
+ALTER TABLE "Tournament" ADD COLUMN "prize1Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "prize1Ru" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner1Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner1Ru" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "prize2Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "prize2Ru" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner2Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner2Ru" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "prize3Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "prize3Ru" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner3Ky" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "winner3Ru" TEXT NOT NULL DEFAULT '';
