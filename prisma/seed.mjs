@@ -7,6 +7,7 @@ const reset = process.argv.includes("--reset");
 
 const images = {
   ulak: "/images/hero-ulak.jpg",
+  crowd: "/images/hero-kokboru-crowd.jpg",
   hero: "/images/hero-horse.jpg",
   field: "/images/horse-field.jpg",
   pasture: "/images/horse-pasture.jpg",
@@ -46,7 +47,10 @@ const settings = {
   addressKy: "Бишкек ш., Кыргызстан",
   addressRu: "г. Бишкек, Кыргызстан",
   socialUrl: "",
-  heroImageUrl: images.ulak,
+  whatsappNumber: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  heroImageUrl: images.crowd,
 };
 
 const categories = [

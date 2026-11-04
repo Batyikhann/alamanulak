@@ -9,12 +9,11 @@ import { youtubeId } from "@/components/media-page";
 // The photo runs edge to edge under a dark veil, with the title and a short line on it; when the admin adds
 // a YouTube link, a button plays it in the same player as the media page.
 
-export default function HomeBand({ image, title, text, videoUrl, eyebrow, labels }: {
+export default function HomeBand({ image, title, text, videoUrl, labels }: {
   image: string;
   title: string;
   text: string;
   videoUrl: string;
-  eyebrow: string;
   labels: { playVideo: string; close: string };
 }) {
   const [playing, setPlaying] = useState(false);
@@ -35,7 +34,6 @@ export default function HomeBand({ image, title, text, videoUrl, eyebrow, labels
     <section className="home-band">
       <Image className="home-band-image" src={image} alt="" fill sizes="100vw" unoptimized />
       <div className="home-band-content section-wrap">
-        <p className="eyebrow">{eyebrow}</p>
         <h2>{title}</h2>
         {text && <p className="home-band-text">{text}</p>}
         {id && <button type="button" className="hero-round-link home-band-play" onClick={() => setPlaying(true)}>

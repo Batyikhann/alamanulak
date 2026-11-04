@@ -72,8 +72,6 @@ body { background: var(--a-bg); color: var(--a-ink); font-family: var(--a-font);
 .admin-topbar-title { min-width: 0; margin-right: auto; }
 .admin-back-to-site { min-height: 36px; padding: 0 12px 0 10px; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; border: 1px solid var(--a-line-strong); border-radius: 999px; color: var(--a-ink); font-size: 13px; font-weight: 600; text-decoration: none; }
 .admin-back-to-site:hover { border-color: var(--a-accent); color: var(--a-accent); }
-.admin-theme-toggle { width: 34px; height: 34px; padding: 0; place-items: center; border: 1px solid var(--a-line-strong); border-radius: 999px; background: transparent; color: var(--a-ink); cursor: pointer; transition: border-color .15s ease, color .15s ease; }
-.admin-theme-toggle:hover { border-color: var(--a-accent); color: var(--a-accent); }
 .admin-user-photo { width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--a-gold); border-radius: 50%; object-fit: cover; }
 .admin-breadcrumb { display: block; color: var(--a-faint); font-size: 11.5px; font-weight: 500; }
 .admin-topbar h1 { margin: 1px 0 0; overflow: hidden; font-family: var(--a-display); font-size: 21px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

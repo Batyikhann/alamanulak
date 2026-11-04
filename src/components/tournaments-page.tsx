@@ -1,25 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarDays, CalendarPlus, MapPin, Trophy } from "lucide-react";
-import type { SiteSettings, Tournament } from "@prisma/client";
+import type { SiteSettings } from "@prisma/client";
+import TournamentCard, { dayLabel, months, type LocalizedTournament } from "@/components/tournament-card";
 import type { Locale } from "@/lib/i18n";
 import { copy, text } from "@/lib/i18n";
 
 // The tournaments page as "жыл айланасы" (the turning year): nomads live by the seasons, so the page
 // opens with a round season wheel beside the federation's word on its tournaments. The wheel is a
 // picture of the year, not a control: a dot per upcoming race this year (races days apart share one). Below it,
-// the tournaments are plain lines of text divided by thin rules: first the upcoming ones (the nearest first,
-// each with the time left), then, on another background, the finished ones (the most recent first, with their result).
+// the tournaments are cards like the news (photo, then dates, title, place and prize or winner), each opening the
+// tournament's own page: first the upcoming ones, ordered by their date (the nearest first, each with the time
+// left), then, on another background, the finished ones (the most recent first).
 
-type LocalizedTournament = Omit<Tournament, "startsAt" | "endsAt"> & { startsAt: string; endsAt: string; isPast: boolean };
 type TournamentsPageProps = { locale: Locale; settings: SiteSettings; tournaments: LocalizedTournament[] };
-type Labels = (typeof copy)[Locale];
-
-const months: Record<Locale, string[]> = {
-  ky: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
-  ru: ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
-};
 
 // The wheel is turned half a month anticlockwise, so January's label sits at the top and each season
 // is centred on a side (spring right, summer bottom, autumn left, winter top).
@@ -61,72 +55,6 @@ function clustersOf(items: LocalizedTournament[]) {
 
 const yearOf = (item: LocalizedTournament) => new Date(item.startsAt).getUTCFullYear();
 
-function dayLabel(value: string, locale: Locale) {
-  const date = new Date(value);
-  return `${date.getUTCDate()} ${months[locale][date.getUTCMonth()]} ${date.getUTCFullYear()}`;
-}
-
-// A one-event calendar file, so the next race can be added to a phone's calendar.
-function calendarFile(item: LocalizedTournament, title: string, place: string) {
-  const stamp = (value: string) => new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Alaman Ulak//KY", "BEGIN:VEVENT", `UID:${item.id}@alamanulak`, `DTSTAMP:${stamp(item.startsAt)}`,
-    `DTSTART:${stamp(item.startsAt)}`, `DTEND:${stamp(item.endsAt)}`, `SUMMARY:${title}`, `LOCATION:${place}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
-  return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
-}
-
-// Days, hours and minutes until a start, or null once it has begun.
-function timeLeft(startsAt: string, now: number, labels: Labels): [number, string][] | null {
-  const left = new Date(startsAt).getTime() - now;
-  if (left <= 0) return null;
-  const minutes = Math.floor(left / 60_000);
-  return [[Math.floor(minutes / 1440), labels.unitDays], [Math.floor((minutes % 1440) / 60), labels.unitHours], [minutes % 60, labels.unitMinutes]];
-}
-
-// One tournament as a line of text: the date, the title with its place and dates and the three prize places
-// (the prizes before it, the winning teams after it), then the time left and "add to calendar" (upcoming).
-// Rows are divided by thin lines.
-function TournamentRow({ item, locale, labels, now, isNext = false }: { item: LocalizedTournament; locale: Locale; labels: Labels; now: number | null; isNext?: boolean }) {
-  const title = text(locale, item.titleKy, item.titleRu);
-  const place = text(locale, item.locationKy, item.locationRu);
-  const start = new Date(item.startsAt);
-  const left = !item.isPast && now !== null ? timeLeft(item.startsAt, now, labels) : null;
-  const running = !item.isPast && now !== null && !left;
-  // The three prize places: before the tournament only the prizes, after it the winning teams as well.
-  const places = ([1, 2, 3] as const).map((rank) => ({
-    place: rank,
-    prize: text(locale, item[`prize${rank}Ky`], item[`prize${rank}Ru`]),
-    winner: item.isPast ? text(locale, item[`winner${rank}Ky`], item[`winner${rank}Ru`]) : "",
-  })).filter((entry) => entry.prize || entry.winner);
-  const note = text(locale, item.resultSummaryKy, item.resultSummaryRu);
-  return (
-    <li className={`tn-row${isNext ? " is-next" : ""}`}>
-      <span className="tn-row-date"><b>{start.getUTCDate()}</b><span>{months[locale][start.getUTCMonth()]} {start.getUTCFullYear()}</span></span>
-      <div className="tn-row-main">
-        {isNext && <p className="eyebrow">{labels.nextRace}</p>}
-        <h3>{title}</h3>
-        <p className="tn-row-meta">
-          <span><MapPin size={13} />{place}</span>
-          <span><CalendarDays size={13} />{dayLabel(item.startsAt, locale)} — {dayLabel(item.endsAt, locale)}</span>
-        </p>
-        {places.length > 0 && <ol className={`tn-prizes${item.isPast ? " is-results" : ""}`} aria-label={item.isPast ? labels.winners : labels.prizes}>
-          {places.map(({ place: rank, prize, winner }) => (
-            <li key={rank}>
-              <span className={`tn-medal is-${rank}`} aria-label={`${rank}`}>{rank}</span>
-              {winner && <strong>{winner}</strong>}
-              {prize && <span className="tn-prize">{prize}</span>}
-            </li>
-          ))}
-        </ol>}
-        {item.isPast && note && <p className="tn-row-note"><Trophy size={14} aria-hidden="true" />{note}</p>}
-      </div>
-      {!item.isPast && <div className="tn-row-side">
-          <span className="tn-row-left">{running ? labels.raceRunning : left ? left.map(([value, unit]) => `${value} ${unit}`).join(" ") : ""}</span>
-          <a className="tn-row-ics" href={calendarFile(item, title, place)} download="alaman-ulak.ics" aria-label={`${labels.addToCalendar}: ${title}`} title={labels.addToCalendar}><CalendarPlus size={16} /></a>
-        </div>}
-    </li>
-  );
-}
-
 export default function TournamentsPage({ locale, settings, tournaments }: TournamentsPageProps) {
   const labels = copy[locale];
   const seasons = [labels.seasonSpring, labels.seasonSummer, labels.seasonAutumn, labels.seasonWinter];
@@ -146,9 +74,14 @@ export default function TournamentsPage({ locale, settings, tournaments }: Tourn
   }, []);
 
   return <>
-    {/* Жыл айланасы: the season wheel beside the federation's text about its tournaments */}
+    {/* Жыл айланасы: the federation's text about its tournaments, with the season wheel beside it */}
     <section className="home-row tn-wheel" id="calendar">
       <div className="section-wrap wheel-layout">
+        <div className="wheel-intro">
+          <h1 className="sr-only">{text(locale, settings.calendarTitleKy, settings.calendarTitleRu)}</h1>
+          <p className="wheel-intro-text">{text(locale, settings.calendarTextKy, settings.calendarTextRu)}</p>
+        </div>
+
         <div className="season-wheel">
           <svg viewBox="-64 0 528 400" role="img" aria-label={year ? `${labels.wheelTitle} ${year}` : labels.wheelTitle}>
             {[[2, 5], [5, 8], [8, 11], [11, 14]].map(([from, to], season) => (
@@ -189,34 +122,28 @@ export default function TournamentsPage({ locale, settings, tournaments }: Tourn
             })}
           </svg>
         </div>
-
-        <div className="section-heading wheel-intro">
-          <p className="eyebrow">{labels.calendarLabel}</p>
-          <h2>{text(locale, settings.calendarTitleKy, settings.calendarTitleRu)}</h2>
-          <p className="wheel-intro-text">{text(locale, settings.calendarTextKy, settings.calendarTextRu)}</p>
-        </div>
       </div>
     </section>
 
-    {/* Алдагы мелдештер: one line per tournament, the nearest first */}
+    {/* Алдагы мелдештер: one card per tournament, the nearest first */}
     <section className="home-row tn-section tn-upcoming">
       <div className="section-wrap">
         <div className="section-heading fed-heading"><h2>{labels.upcomingTitle}</h2></div>
         {!upcoming.length && <p className="empty-note">{labels.upcomingEmpty}</p>}
-        {upcoming.length > 0 && <ul className="tn-rows">
-          {upcoming.map((item) => <TournamentRow key={item.id} item={item} locale={locale} labels={labels} now={now} isNext={item.id === next?.id} />)}
-        </ul>}
+        {upcoming.length > 0 && <div className="news-grid tn-grid">
+          {upcoming.map((item) => <TournamentCard key={item.id} item={item} locale={locale} now={now} isNext={item.id === next?.id} />)}
+        </div>}
       </div>
     </section>
 
-    {/* Аяктаган мелдештер: the same lines on another background, the most recent first */}
+    {/* Аяктаган мелдештер: the same cards on another background, the most recent first */}
     <section className="home-row tn-section tn-finished">
       <div className="section-wrap">
         <div className="section-heading fed-heading"><h2>{labels.finishedTitle}</h2></div>
         {!results.length && <p className="empty-note">{labels.finishedEmpty}</p>}
-        {results.length > 0 && <ul className="tn-rows">
-          {results.map((item) => <TournamentRow key={item.id} item={item} locale={locale} labels={labels} now={now} />)}
-        </ul>}
+        {results.length > 0 && <div className="news-grid tn-grid">
+          {results.map((item) => <TournamentCard key={item.id} item={item} locale={locale} />)}
+        </div>}
       </div>
     </section>
   </>;

@@ -24,7 +24,7 @@ export default async function AdminSettingsPage({ searchParams }: AdminPageProps
     db.siteSettings.findUnique({ where: { id: "main" } }),
     db.newsArticle.findMany({ orderBy: { createdAt: "desc" } }),
     db.tournament.findMany({ orderBy: { startsAt: "desc" } }),
-    db.player.findMany({ orderBy: [{ clubKy: "asc" }, { number: "asc" }, { name: "asc" }], include: { cards: { orderBy: { date: "desc" } } } }),
+    db.player.findMany({ orderBy: [{ clubKy: "asc" }, { number: "asc" }, { name: "asc" }], include: { card: true } }),
     db.ruleSection.findMany({ orderBy: { sortOrder: "asc" } }),
     db.horseCategory.findMany({ orderBy: { sortOrder: "asc" } }),
     db.horseListing.findMany({ include: { category: true }, orderBy: { createdAt: "desc" } }),

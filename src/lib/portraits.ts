@@ -1,5 +1,8 @@
-// Demo portraits for players and federation members without a photo, until the admin uploads a real one.
-// The same name always gets the same picture; women (by Kyrgyz/Russian surname or name ending) get a headscarf.
+// Demo pictures until the admin uploads a real photo. Every player without one shows the same rider in a kalpak and
+// team shirt. Federation members get drawn portraits: the same name always gets the same picture, and women
+// (by Kyrgyz/Russian surname or name ending) get a headscarf.
+export const demoPlayerPhoto = "/images/portraits/player-demo.jpg";
+
 const men = 8;
 const women = 3;
 

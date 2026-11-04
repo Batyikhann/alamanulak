@@ -137,6 +137,9 @@ async function saveSettingsActionChecked(formData: FormData) {
     contactEmail: z.string().trim().email().max(150),
     addressKy: requiredText(240), addressRu: requiredText(240),
     socialUrl: z.string().trim().max(300).refine((value) => !value || value.startsWith("https://")),
+    whatsappNumber: z.string().trim().max(40).refine((value) => !value || /^\+?[\d\s()-]{7,}$/.test(value)),
+    instagramUrl: z.string().trim().max(300).refine((value) => !value || /^https:\/\/(www\.)?instagram\.com\//.test(value)),
+    facebookUrl: z.string().trim().max(300).refine((value) => !value || /^https:\/\/(www\.|m\.)?(facebook|fb)\.com\//.test(value)),
     heroImageUrl: imagePath,
     bandImageUrl: imagePath,
     bandTitleKy: requiredText(180), bandTitleRu: requiredText(180),
@@ -195,12 +198,15 @@ async function saveTournamentActionChecked(formData: FormData) {
     locationKy: requiredText(180), locationRu: requiredText(180),
     startsAt: z.string().min(1), endsAt: z.string().min(1),
     resultSummaryKy: z.string().trim().max(1500), resultSummaryRu: z.string().trim().max(1500),
+    descriptionKy: z.string().trim().max(20000), descriptionRu: z.string().trim().max(20000),
+    imageUrl: z.union([z.literal(""), imagePath]),
     ...Object.fromEntries(prizeFields.map((field) => [field, z.string().trim().max(160)])),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) invalid();
   const places = parsed.data as unknown as Record<(typeof prizeFields)[number], string>;
   // Each optional text is given in both languages or in neither.
   if (Boolean(parsed.data.resultSummaryKy) !== Boolean(parsed.data.resultSummaryRu)) invalid();
+  if (Boolean(parsed.data.descriptionKy) !== Boolean(parsed.data.descriptionRu)) invalid();
   if (prizeFields.some((field) => field.endsWith("Ky") && Boolean(places[field]) !== Boolean(places[field.replace(/Ky$/, "Ru") as (typeof prizeFields)[number]]))) invalid();
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = new Date(parsed.data.endsAt);
@@ -212,6 +218,9 @@ async function saveTournamentActionChecked(formData: FormData) {
     locationRu: parsed.data.locationRu,
     resultSummaryKy: parsed.data.resultSummaryKy,
     resultSummaryRu: parsed.data.resultSummaryRu,
+    descriptionKy: parsed.data.descriptionKy,
+    descriptionRu: parsed.data.descriptionRu,
+    imageUrl: parsed.data.imageUrl,
     ...Object.fromEntries(prizeFields.map((field) => [field, places[field]])),
     startsAt,
     endsAt,
@@ -282,7 +291,10 @@ export async function deletePlayerAction(formData: FormData) {
   await finish(localeValue(formData));
 }
 
-// A yellow or red card on a player: the date it was given, optionally the tournament, and the reason.
+// A player's yellow or red card: the date it was given, optionally the tournament, and the reason. A player holds
+// one card, so a new card on a player who already has one replaces it as red, whatever colour was picked (a
+// second yellow makes a red, a red replaces a yellow, and a red stays red). Editing a card (with its id) saves
+// it as typed, so a mistake can be corrected, red back to yellow included.
 export async function savePlayerCardAction(formData: FormData) {
   await guard(formData, savePlayerCardActionChecked);
 }
@@ -299,7 +311,11 @@ async function savePlayerCardActionChecked(formData: FormData) {
   const data = { ...parsed.data, date, tournamentId: parsed.data.tournamentId || null };
   const id = value(formData, "id");
   if (id) await db.playerCard.update({ where: { id }, data });
-  else await db.playerCard.create({ data });
+  else {
+    const current = await db.playerCard.findUnique({ where: { playerId: data.playerId } });
+    if (current) await db.playerCard.update({ where: { id: current.id }, data: { ...data, color: "red" } });
+    else await db.playerCard.create({ data });
+  }
   await finish(localeValue(formData));
 }
 
@@ -376,7 +392,7 @@ async function saveHorseActionChecked(formData: FormData) {
     sellerTelegram: z.string().trim().max(120), sellerInstagram: z.string().trim().max(120),
   }).safeParse(Object.fromEntries(formData));
   if (!parsed.success) invalid();
-  // A listing needs its video, or at least a photo until the video is up.
+  // A listing needs its video, or at least a main photo for its card until the video is up.
   if (!parsed.data.videoUrl && !parsed.data.imageUrl) invalid();
   if (parsed.data.imageUrl && !imagePath.safeParse(parsed.data.imageUrl).success) invalid();
   const sellerTelegram = parsed.data.sellerTelegram ? socialHandle(parsed.data.sellerTelegram, /^(https?:\/\/)?(www\.)?(t\.me|telegram\.me)\//i) : "";
@@ -384,6 +400,9 @@ async function saveHorseActionChecked(formData: FormData) {
   if (sellerTelegram === null || sellerInstagram === null) invalid();
   const price = parsed.data.price ? Number(parsed.data.price) : null;
   if (price !== null && (!Number.isInteger(price) || price < 0 || price > 2_000_000_000)) invalid();
+  // Extra photos for the horse's page: uploaded images, at most 12.
+  const photoUrls = formData.getAll("photoUrls").map((entry) => String(entry).trim()).filter(Boolean);
+  if (photoUrls.length > 12 || photoUrls.some((url) => !imagePath.safeParse(url).success)) invalid();
   const data = {
     nameKy: parsed.data.nameKy,
     nameRu: parsed.data.nameRu,
@@ -395,6 +414,7 @@ async function saveHorseActionChecked(formData: FormData) {
     locationRu: parsed.data.locationRu,
     price,
     imageUrl: parsed.data.imageUrl,
+    photoUrls,
     videoUrl: parsed.data.videoUrl,
     categoryId: parsed.data.categoryId,
     sellerName: parsed.data.sellerName,

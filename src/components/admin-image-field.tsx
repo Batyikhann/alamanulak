@@ -159,6 +159,54 @@ export function ImageField({ name, label, value = "", required = true, aspect = 
   );
 }
 
+// Several photos in one field (a horse listing's extra photos): add one or more at once, remove any. Each is
+// listed by name; the form gets one `name` value per photo, in order.
+export function ImageList({ name, label, values = [], labels }: { name: string; label: string; values?: string[]; labels: ImageLabels }) {
+  const [urls, setUrls] = useState(values);
+  const [busy, setBusy] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function take(files: FileList | null) {
+    const chosen = imagesIn(files);
+    if (!chosen.length) return;
+    setFailed(false);
+    setBusy((count) => count + chosen.length);
+    for (const file of chosen) {
+      try {
+        const url = await uploadImage(file);
+        setUrls((list) => [...list, url]);
+      } catch {
+        setFailed(true);
+      }
+      setBusy((count) => count - 1);
+    }
+  }
+
+  return (
+    <div className="admin-field admin-image-field admin-image-list">
+      <span>{label}</span>
+      {urls.map((url, index) => (
+        <div className="admin-image-box has-photo" key={`${url}-${index}`}>
+          <a className="admin-image-name" href={url} target="_blank" rel="noopener noreferrer"><ImageIcon size={16} /><span>{photoName(url, labels.uploaded)}</span></a>
+          <span className="admin-image-actions">
+            <button type="button" className="admin-image-icon is-danger" onClick={() => setUrls((list) => list.filter((_, other) => other !== index))} title={labels.remove} aria-label={labels.remove}><Trash2 size={15} /></button>
+          </span>
+          <input type="hidden" name={name} value={url} />
+        </div>
+      ))}
+      <div className="admin-image-box">
+        <span className="admin-image-name is-empty">{busy ? <Loader2 className="admin-spin" size={16} /> : <ImagePlus size={16} />}<span>{busy ? `${labels.uploading} (${busy})` : labels.empty}</span></span>
+        <span className="admin-image-actions">
+          <button type="button" className="admin-image-choose" onClick={() => inputRef.current?.click()}><Upload size={14} />{labels.choose}</button>
+        </span>
+        {failed && <small className="admin-image-error">{labels.error}</small>}
+        <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={(event) => { take(event.target.files); event.target.value = ""; }} />
+      </div>
+    </div>
+  );
+}
+
 export type BatchLabels = ImageLabels & { title: string; hint: string; captionKy: string; captionRu: string; saveAll: string };
 type BatchItem = { key: string; url: string; captionKy: string; captionRu: string };
 

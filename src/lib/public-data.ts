@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getPublicTournaments } from "@/lib/tournaments";
 
 export async function getPublicData() {
-  const [settings, articles, tournaments, players, rules, categories, horses, members, aboutPhotos, milestones, mediaItems] = await Promise.all([
+  const [settings, articles, tournaments, players, rules, categories, horses, members, milestones, mediaItems] = await Promise.all([
     db.siteSettings.findUnique({ where: { id: "main" } }),
     db.newsArticle.findMany({
       where: { published: true },
@@ -14,7 +14,7 @@ export async function getPublicData() {
     db.player.findMany({
       where: { published: true },
       orderBy: [{ clubKy: "asc" }, { number: "asc" }, { name: "asc" }],
-      include: { cards: { orderBy: { date: "desc" }, include: { tournament: { select: { titleKy: true, titleRu: true } } } } },
+      include: { card: { include: { tournament: { select: { titleKy: true, titleRu: true } } } } },
     }),
     db.ruleSection.findMany({
       where: { published: true },
@@ -30,10 +30,6 @@ export async function getPublicData() {
       orderBy: { createdAt: "desc" },
     }),
     db.federationMember.findMany({
-      where: { published: true },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    }),
-    db.aboutPhoto.findMany({
       where: { published: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
@@ -63,7 +59,6 @@ export async function getPublicData() {
     categories,
     horses,
     members,
-    aboutPhotos,
     milestones,
     mediaItems,
   };
@@ -95,4 +90,10 @@ export async function getNewsPage(requestedPage: number, archive: boolean) {
     archive,
     archiveTotal,
   };
+}
+
+// One published article for its own page (it may be older than the latest ones loaded for the rest of the site).
+export async function getPublicArticle(id: string) {
+  const article = await db.newsArticle.findFirst({ where: { id, published: true } });
+  return article ? { ...article, publishedAt: article.publishedAt?.toISOString() ?? null } : null;
 }

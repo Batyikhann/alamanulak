@@ -1,18 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, MapPin, Phone, X, type LucideIcon } from "lucide-react";
-import type { AboutPhoto, FederationMember, HistoryMilestone, SiteSettings } from "@prisma/client";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ArrowRight, MapPin, Phone, type LucideIcon } from "lucide-react";
+import type { FederationMember, HistoryMilestone, SiteSettings } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
 import { copy, foundedYear, text } from "@/lib/i18n";
-import KeregeFillers from "@/components/kerege-fillers";
-import { latticeCell, latticeWidth } from "@/lib/kerege";
 import { kgMapSize, kgRegions } from "@/lib/kg-regions";
 import { demoPortrait } from "@/lib/portraits";
 
-// The "about" page is built like a боз үй: түндүк (mission and numbers), уук (leadership
-// radiating from the leader), кереге (photo lattice), the regions map and the жол timeline.
+// The "about" page is built like a боз үй: түндүк (mission and numbers, the түндүк slowly turning), уук
+// (leadership radiating from the leader), the regions map and the жол timeline.
 
 type Stat = { icon: LucideIcon; value: string; label: string };
 
@@ -20,7 +18,6 @@ type FederationPageProps = {
   locale: Locale;
   settings: SiteSettings;
   members: FederationMember[];
-  photos: AboutPhoto[];
   milestones: HistoryMilestone[];
   stats: Stat[];
   crownImage: string;
@@ -40,17 +37,16 @@ function regionName(locale: Locale, id: string) {
   return region ? text(locale, region.nameKy, region.nameRu) : "";
 }
 
-function SectionHeading({ label, title, children }: { label: string; title: string; children?: ReactNode }) {
+function SectionHeading({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="section-heading fed-heading">
-      <p className="eyebrow">{label}</p>
       <h2>{title}</h2>
       {children}
     </div>
   );
 }
 
-export default function FederationPage({ locale, settings, members, photos, milestones, stats, crownImage, headerImage }: FederationPageProps) {
+export default function FederationPage({ locale, settings, members, milestones, stats, crownImage, headerImage }: FederationPageProps) {
   const labels = copy[locale];
   const leader = members.find((member) => member.kind === "leader");
   const board = members.filter((member) => member.kind === "board");
@@ -65,31 +61,12 @@ export default function FederationPage({ locale, settings, members, photos, mile
   const [activeRegion, setActiveRegion] = useState(regionIds[0] ?? "KG-C");
   const regionMembers = regional.filter((member) => member.region === activeRegion);
 
-  const [lightbox, setLightbox] = useState<number | null>(null);
-  const desktopK = latticeWidth(photos.length);
-
-  useEffect(() => {
-    if (lightbox === null) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLightbox(null);
-      if (event.key === "ArrowRight") setLightbox((index) => index === null ? null : (index + 1) % photos.length);
-      if (event.key === "ArrowLeft") setLightbox((index) => index === null ? null : (index - 1 + photos.length) % photos.length);
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [lightbox, photos.length]);
-
   function selectMember(id: string) {
     setSelectedId(id);
     if (window.matchMedia("(max-width: 760px)").matches) detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   const [founded, ...orbit] = stats;
-  const openPhoto = lightbox === null ? null : photos[lightbox];
 
   return <>
     {/* Photo header inside the yurt, built like the horse market's: still photo, ornament strip, dark fades */}
@@ -135,7 +112,7 @@ export default function FederationPage({ locale, settings, members, photos, mile
     {/* Уук: leadership seen from above, poles running from the leader to the кереге ring */}
     {center && <section className="home-row fed-uuk">
       <div className="section-wrap">
-        <SectionHeading label={labels.uukLabel} title={labels.uukTitle}><p className="fed-heading-text">{labels.uukText}</p></SectionHeading>
+        <SectionHeading title={labels.uukTitle}><p className="fed-heading-text">{labels.uukText}</p></SectionHeading>
         <div className="fed-uuk-layout">
           <div className="fed-uuk-ring" style={{ "--count": circle.length } as CSSProperties}>
             <svg className="fed-uuk-lines" viewBox="0 0 100 100" aria-hidden="true">
@@ -183,42 +160,11 @@ export default function FederationPage({ locale, settings, members, photos, mile
       </div>
     </section>}
 
-    {/* Кереге: the photo archive as the yurt's lattice wall */}
-    {photos.length > 0 && <section className="home-row fed-kerege">
-      <div className="section-wrap">
-        <SectionHeading label={labels.keregeLabel} title={labels.keregeTitle} />
-        <div className="kerege" style={{ "--cols-d": desktopK * 2, "--cols-m": 4 } as CSSProperties}>
-          <div className="kerege-grid">
-            {photos.map((photo, index) => {
-              const desktop = latticeCell(index, desktopK);
-              const mobile = latticeCell(index, 2);
-              const caption = text(locale, photo.captionKy, photo.captionRu);
-              return (
-                <button
-                  type="button"
-                  className="kerege-cell"
-                  key={photo.id}
-                  style={{ "--dc": desktop.col, "--dr": desktop.row, "--mc": mobile.col, "--mr": mobile.row } as CSSProperties}
-                  onClick={() => setLightbox(index)}
-                  aria-label={caption}
-                >
-                  <span className="kerege-photo">
-                    <Image src={photo.imageUrl} alt="" width={800} height={800} unoptimized />
-                    <span className="kerege-caption">{caption}</span>
-                  </span>
-                </button>
-              );
-            })}
-            <KeregeFillers count={photos.length} desktopK={desktopK} usedPhotos={photos.map((photo) => photo.imageUrl)} />
-          </div>
-        </div>
-      </div>
-    </section>}
 
     {/* Regions: representatives on the map of Kyrgyzstan */}
     {regional.length > 0 && <section className="home-row fed-map">
       <div className="section-wrap">
-        <SectionHeading label={labels.mapLabel} title={labels.mapTitle}><p className="fed-heading-text">{labels.mapHint}</p></SectionHeading>
+        <SectionHeading title={labels.mapTitle}><p className="fed-heading-text">{labels.mapHint}</p></SectionHeading>
         <div className="fed-map-layout">
           <div className="fed-map-art">
             <svg viewBox={`0 0 ${kgMapSize.width} ${kgMapSize.height}`} role="img" aria-label={labels.mapTitle}>
@@ -282,7 +228,7 @@ export default function FederationPage({ locale, settings, members, photos, mile
     {/* Жол: the federation's history as a race track, a horse riding along it on scroll */}
     {milestones.length > 0 && <section className="home-row fed-jol">
       <div className="section-wrap">
-        <SectionHeading label={labels.jolLabel} title={labels.jolTitle} />
+        <SectionHeading title={labels.jolTitle} />
         <div className="jol">
           <div className="jol-inner" style={{ "--count": milestones.length } as CSSProperties}>
           <div className="jol-track" aria-hidden="true"><span className="jol-horse" /></div>
@@ -300,17 +246,6 @@ export default function FederationPage({ locale, settings, members, photos, mile
       </div>
     </section>}
 
-    {openPhoto && lightbox !== null && <div className="fed-lightbox" role="dialog" aria-modal="true" aria-label={text(locale, openPhoto.captionKy, openPhoto.captionRu)} onClick={() => setLightbox(null)}>
-      <figure onClick={(event) => event.stopPropagation()}>
-        <Image src={openPhoto.imageUrl} alt={text(locale, openPhoto.captionKy, openPhoto.captionRu)} width={1800} height={1200} unoptimized />
-        <figcaption>{text(locale, openPhoto.captionKy, openPhoto.captionRu)}<span>{lightbox + 1} / {photos.length}</span></figcaption>
-      </figure>
-      <button type="button" className="fed-lightbox-close" onClick={() => setLightbox(null)} aria-label={labels.close} autoFocus><X size={24} /></button>
-      {photos.length > 1 && <>
-        <button type="button" className="fed-lightbox-arrow is-prev" onClick={(event) => { event.stopPropagation(); setLightbox((lightbox - 1 + photos.length) % photos.length); }} aria-label={labels.prevPhoto}><ChevronLeft size={30} /></button>
-        <button type="button" className="fed-lightbox-arrow is-next" onClick={(event) => { event.stopPropagation(); setLightbox((lightbox + 1) % photos.length); }} aria-label={labels.nextPhoto}><ChevronRight size={30} /></button>
-      </>}
-    </div>}
   </>;
 }
 

@@ -35,8 +35,7 @@ import type {
   Tournament,
 } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ImageBatch, ImageField, type BatchLabels, type ImageLabels } from "@/components/admin-image-field";
+import { ImageBatch, ImageField, ImageList, type BatchLabels, type ImageLabels } from "@/components/admin-image-field";
 import AdminLangHelper from "@/components/admin-lang-helper";
 import LocaleSync from "@/components/locale-sync";
 import { kgRegions } from "@/lib/kg-regions";
@@ -83,7 +82,7 @@ type AdminWorkspaceProps = {
     settings: SiteSettings;
     articles: NewsArticle[];
     tournaments: Tournament[];
-    players: (Player & { cards: PlayerCard[] })[];
+    players: (Player & { card: PlayerCard | null })[];
     rules: RuleSection[];
     categories: HorseCategory[];
     horses: HorseWithCategory[];
@@ -162,7 +161,6 @@ const ui = {
     displayName: "Атыңыз",
     photoUrl: "Сүрөтүңүз",
     backToSite: "Сайтка",
-    theme: "Жарык же караңгы тема",
     publicSite: "Сайтты көрүү",
     logout: "Чыгуу",
     demo: "Демо маалымат · жарыялоодон мурда текшериңиз",
@@ -206,6 +204,9 @@ const ui = {
     batchCaptionRu: "Жазуу орусча (кааласаңыз)",
     batchSaveAll: "Баарын сактоо",
     social: "Социалдык тармактын шилтемеси",
+    whatsapp: "WhatsApp номери, +996 менен (футер)",
+    instagram: "Instagram шилтемеси (футер)",
+    facebook: "Facebook шилтемеси (футер)",
     phone: "Телефон",
     email: "Электрондук почта",
     address: "Дарек",
@@ -221,6 +222,7 @@ const ui = {
     title: "Аталышы",
     description: "Кыскача маалымат",
     body: "Толук маалымат",
+    tournamentDetails: "Толук маалымат (турнирдин барагы)",
     excerpt: "Кыскача текст",
     place: "Өткөрүлүүчү жер",
     starts: "Башталышы",
@@ -243,7 +245,9 @@ const ui = {
     symbol: "Белгиси (кийиз панелинде)",
     birthYear: "Туулган жылы (кааласаңыз)",
     achievements: "Жетишкендиктери (карточканын артында)",
-    cards: "Сары жана кызыл карточкалар",
+    cards: "Карточка",
+    cardNote: "Оюнчуда бир гана карточка болот. Экинчи сары карточка аны кызылга алмаштырат.",
+    secondCard: "Экинчи сары карточка (кызылга айланат)",
     cardColor: "Карточка",
     cardYellow: "Сары",
     cardRed: "Кызыл",
@@ -257,11 +261,12 @@ const ui = {
     price: "Баасы · сом",
     sellerName: "Сатуучунун аты (кааласаңыз)",
     sellerPhone: "Телефон",
-    sellerContacts: "Сатуучунун байланыштары (видеонун үстүндөгү «Байланышуу» баскычында көрүнөт)",
+    sellerContacts: "Сатуучунун байланыштары (аттын барагында көрүнөт, негизинен телефон жана WhatsApp)",
     sellerTelegram: "Telegram (@аты же шилтеме)",
     sellerInstagram: "Instagram (@аты же шилтеме)",
-    horseVideo: "YouTube видео шилтемеси (федерациянын каналынан)",
-    horsePhoto: "Сүрөт (видео жок болсо гана көрсөтүлөт)",
+    horseVideo: "YouTube видео шилтемеси (федерациянын каналынан, аттын барагында көрсөтүлөт)",
+    horsePhoto: "Негизги сүрөт (картада көрсөтүлөт)",
+    horsePhotos: "Кошумча сүрөттөр (аттын барагында көрсөтүлөт)",
     category: "Категория",
     empty: "Азырынча маалымат жок",
     requiredNote: "Жарыялоо үчүн кыргызча жана орусча талаалардын баары толтурулушу керек.",
@@ -319,7 +324,6 @@ const ui = {
     displayName: "Ваше имя",
     photoUrl: "Ваше фото",
     backToSite: "На сайт",
-    theme: "Светлая или тёмная тема",
     publicSite: "Открыть сайт",
     logout: "Выйти",
     demo: "Демо-данные · проверьте перед публикацией",
@@ -363,6 +367,9 @@ const ui = {
     batchCaptionRu: "Подпись по-русски (по желанию)",
     batchSaveAll: "Сохранить все",
     social: "Ссылка на соцсеть",
+    whatsapp: "Номер WhatsApp с +996 (футер)",
+    instagram: "Ссылка на Instagram (футер)",
+    facebook: "Ссылка на Facebook (футер)",
     phone: "Телефон",
     email: "Электронная почта",
     address: "Адрес",
@@ -378,6 +385,7 @@ const ui = {
     title: "Название",
     description: "Краткое описание",
     body: "Полный текст",
+    tournamentDetails: "Подробная информация (страница турнира)",
     excerpt: "Короткий текст",
     place: "Место проведения",
     starts: "Начало",
@@ -400,7 +408,9 @@ const ui = {
     symbol: "Символ (на войлочной панели)",
     birthYear: "Год рождения (по желанию)",
     achievements: "Достижения (обратная сторона карточки)",
-    cards: "Жёлтые и красные карточки",
+    cards: "Карточка",
+    cardNote: "У игрока может быть только одна карточка. Вторая жёлтая заменяет её на красную.",
+    secondCard: "Вторая жёлтая карточка (станет красной)",
     cardColor: "Карточка",
     cardYellow: "Жёлтая",
     cardRed: "Красная",
@@ -414,11 +424,12 @@ const ui = {
     price: "Цена · сом",
     sellerName: "Имя продавца (по желанию)",
     sellerPhone: "Телефон",
-    sellerContacts: "Контакты продавца (видны по кнопке «Связаться» над видео)",
+    sellerContacts: "Контакты продавца (видны на странице лошади, прежде всего телефон и WhatsApp)",
     sellerTelegram: "Telegram (@имя или ссылка)",
     sellerInstagram: "Instagram (@имя или ссылка)",
-    horseVideo: "Ссылка на видео YouTube (с канала федерации)",
-    horsePhoto: "Фото (показывается, только если нет видео)",
+    horseVideo: "Ссылка на видео YouTube (с канала федерации, на странице лошади)",
+    horsePhoto: "Главное фото (на карточке)",
+    horsePhotos: "Дополнительные фото (на странице лошади)",
     category: "Категория",
     empty: "Пока нет данных",
     requiredNote: "Для публикации заполните поля на кыргызском и русском языках.",
@@ -521,12 +532,13 @@ function FormButtons({ save, isNew, action, id, labels }: {
 }
 
 // The fields of a player's yellow or red card: colour, date, the tournament (optional) and the reason (optional).
-function PlayerCardFields({ card, tournaments, labels, locale }: { card?: PlayerCard; tournaments: Tournament[]; labels: typeof ui.ky | typeof ui.ru; locale: Locale }) {
+// `fixedColor` leaves the colour out (the form sends it itself).
+function PlayerCardFields({ card, tournaments, labels, locale, fixedColor = false }: { card?: PlayerCard; tournaments: Tournament[]; labels: typeof ui.ky | typeof ui.ru; locale: Locale; fixedColor?: boolean }) {
   return <div className="admin-form-grid admin-form-grid-three">
-    <label className="admin-field">{labels.cardColor}<select name="color" required defaultValue={card?.color ?? "yellow"}>
+    {!fixedColor && <label className="admin-field">{labels.cardColor}<select name="color" required defaultValue={card?.color ?? "yellow"}>
       <option value="yellow">{labels.cardYellow}</option>
       <option value="red">{labels.cardRed}</option>
-    </select></label>
+    </select></label>}
     <Field name="date" label={labels.cardDate} type="date" value={card ? card.date.toISOString().slice(0, 10) : ""} />
     <label className="admin-field">{labels.cardTournament}<select name="tournamentId" defaultValue={card?.tournamentId ?? ""}>
       <option value="">{labels.cardNoTournament}</option>
@@ -570,6 +582,7 @@ function HorseFields({ horse, categories, labels }: { horse?: HorseListing; cate
       <Field name="videoUrl" label={labels.horseVideo} type="url" value={horse?.videoUrl} required={false} />
       <Field name="price" label={labels.price} type="number" value={horse?.price ?? ""} required={false} />
       <ImageField name="imageUrl" label={labels.horsePhoto} value={horse?.imageUrl} required={false} labels={imageLabels(labels)} />
+      <ImageList name="photoUrls" label={labels.horsePhotos} values={horse?.photoUrls} labels={imageLabels(labels)} />
       <label className="admin-field">{labels.category}<select name="categoryId" required defaultValue={horse?.categoryId ?? ""}>
         {!horse && <option value="" disabled>—</option>}
         {categories.map((category) => <option value={category.id} key={category.id}>{category.nameKy} / {category.nameRu}</option>)}
@@ -664,7 +677,6 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
           <div className="admin-top-actions">
             {saved && <p className="admin-toast" key={saved} role="status"><Check size={15} />{labels.saved}</p>}
             <Link className="language-switch" href={tabHref(tab, locale === "ky" ? "ru" : "ky")}>{locale === "ky" ? "RU" : "КЫР"}</Link>
-            <ThemeToggle label={labels.theme} className="admin-theme-toggle theme-toggle" />
           </div>
         </header>
 
@@ -747,6 +759,9 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
                 <Field name="contactPhone" label={labels.phone} value={data.settings.contactPhone} />
                 <Field name="contactEmail" label={labels.email} value={data.settings.contactEmail} type="email" />
                 <Field name="socialUrl" label={labels.social} value={data.settings.socialUrl} required={false} />
+                <Field name="whatsappNumber" label={labels.whatsapp} value={data.settings.whatsappNumber} type="tel" required={false} />
+                <Field name="instagramUrl" label={labels.instagram} value={data.settings.instagramUrl} type="url" required={false} />
+                <Field name="facebookUrl" label={labels.facebook} value={data.settings.facebookUrl} type="url" required={false} />
                 <Pair field="address" label={labels.address} ky={data.settings.addressKy} ru={data.settings.addressRu} />
               </div>
               <div className="admin-form-actions"><button className="admin-save" type="submit"><Save size={15} />{labels.save}</button></div>
@@ -791,6 +806,8 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
                   <Pair field="location" label={labels.place} />
                   <Field name="startsAt" label={labels.starts} type="datetime-local" />
                   <Field name="endsAt" label={labels.ends} type="datetime-local" />
+                  <ImageField name="imageUrl" label={labels.image} required={false} labels={imageLabels(labels)} />
+                  <Pair field="description" label={labels.tournamentDetails} required={false} multiline rows={6} />
                   <Pair field="resultSummary" label={labels.results} required={false} multiline />
                 </div>
                 <PrizeFields labels={labels} />
@@ -806,6 +823,8 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
                   <Pair field="location" label={labels.place} ky={tournament.locationKy} ru={tournament.locationRu} />
                   <Field name="startsAt" label={labels.starts} type="datetime-local" value={datetimeLocal(tournament.startsAt)} />
                   <Field name="endsAt" label={labels.ends} type="datetime-local" value={datetimeLocal(tournament.endsAt)} />
+                  <ImageField name="imageUrl" label={labels.image} value={tournament.imageUrl} required={false} labels={imageLabels(labels)} />
+                  <Pair field="description" label={labels.tournamentDetails} ky={tournament.descriptionKy} ru={tournament.descriptionRu} required={false} multiline rows={6} />
                   <Pair field="resultSummary" label={labels.results} ky={tournament.resultSummaryKy} ru={tournament.resultSummaryRu} required={false} multiline />
                 </div>
                 <PrizeFields tournament={tournament} labels={labels} />
@@ -851,21 +870,26 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
                 <PublishToggle label={labels.published} checked={player.published} />
                 <FormButtons save={labels.save} isNew={false} action={deletePlayerAction} id={player.id} labels={labels} />
               </form>
-              <h3 className="admin-subheading">{labels.cards}<span>{player.cards.length}</span></h3>
-              {player.cards.map((card) => <EditDetails key={card.id} title={`${card.color === "red" ? "🟥" : "🟨"} ${card.date.toISOString().slice(0, 10)}${card.reasonKy ? ` · ${locale === "ky" ? card.reasonKy : card.reasonRu}` : ""}`}>
+              {/* One card per player: the card itself (editable), then a form for a new one. A new card on a
+                  yellow turns it red; a red is already the last step, so only it is shown. */}
+              <h3 className="admin-subheading">{labels.cards}</h3>
+              <p className="admin-form-note">{labels.cardNote}</p>
+              {player.card && <EditDetails title={`${player.card.color === "red" ? "🟥" : "🟨"} ${player.card.date.toISOString().slice(0, 10)}${player.card.reasonKy ? ` · ${locale === "ky" ? player.card.reasonKy : player.card.reasonRu}` : ""}`}>
                 <form action={savePlayerCardAction} className="admin-form">
-                  <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={card.id} /><input type="hidden" name="playerId" value={player.id} />
-                  <PlayerCardFields card={card} tournaments={data.tournaments} labels={labels} locale={locale} />
-                  <FormButtons save={labels.save} isNew={false} action={deletePlayerCardAction} id={card.id} labels={labels} />
+                  <input type="hidden" name="locale" value={locale} /><input type="hidden" name="id" value={player.card.id} /><input type="hidden" name="playerId" value={player.id} />
+                  <PlayerCardFields card={player.card} tournaments={data.tournaments} labels={labels} locale={locale} />
+                  <FormButtons save={labels.save} isNew={false} action={deletePlayerCardAction} id={player.card.id} labels={labels} />
                 </form>
-              </EditDetails>)}
-              <EditDetails title={`+ ${labels.addCard}`} isNew>
+              </EditDetails>}
+              {player.card?.color !== "red" && <EditDetails title={`+ ${player.card ? labels.secondCard : labels.addCard}`} isNew>
                 <form action={savePlayerCardAction} className="admin-form">
                   <input type="hidden" name="locale" value={locale} /><input type="hidden" name="playerId" value={player.id} />
-                  <PlayerCardFields tournaments={data.tournaments} labels={labels} locale={locale} />
+                  {/* A second card is always red, so there is no colour to choose */}
+                  {player.card ? <><input type="hidden" name="color" value="red" /><PlayerCardFields tournaments={data.tournaments} labels={labels} locale={locale} fixedColor /></>
+                    : <PlayerCardFields tournaments={data.tournaments} labels={labels} locale={locale} />}
                   <FormButtons save={labels.save} isNew labels={labels} />
                 </form>
-              </EditDetails>
+              </EditDetails>}
             </EditDetails>)}
             {!data.players.length && <p className="admin-empty-note">{labels.empty}</p>}
           </section>}

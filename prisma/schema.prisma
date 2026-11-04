@@ -50,11 +50,15 @@ model SiteSettings {
   addressKy    String
   addressRu    String
   socialUrl    String   @default("")
+  // Footer social links: a WhatsApp number and the Instagram and Facebook pages (each shown only when set)
+  whatsappNumber String @default("")
+  instagramUrl   String @default("")
+  facebookUrl    String @default("")
   heroImageUrl String
   // The full-width photo band on the homepage, between tournaments and players: a photo, a title and a short
   // line, plus an optional YouTube video that opens in the player. bandShown hides the whole band.
   bandShown    Boolean  @default(true)
-  bandImageUrl String   @default("/images/hero-ulak.jpg")
+  bandImageUrl String   @default("/images/band-sonkul.jpg")
   bandTitleKy  String   @default("Улак тартыш — ата-бабадан калган мурас")
   bandTitleRu  String   @default("Улак тартыш — наследие предков")
   bandTextKy   String   @default("Тоо этегиндеги талаада чабандестер кылымдар бою ушундай чабышкан. Федерация бул салтты сактап, жаңы муунга өткөрөт.")
@@ -102,6 +106,11 @@ model Tournament {
   // An optional note on the result, e.g. the final's score.
   resultSummaryKy String   @default("")
   resultSummaryRu String   @default("")
+  // The tournament's photo (its card and page; empty: one of the site's photos) and the detailed information on
+  // its own page, written by the admin.
+  imageUrl        String   @default("")
+  descriptionKy   String   @default("")
+  descriptionRu   String   @default("")
   published       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -126,8 +135,8 @@ model Player {
   birthYear      Int?
   achievementsKy String @default("")
   achievementsRu String @default("")
-  // Yellow and red cards the player has received, shown on the players page.
-  cards      PlayerCard[]
+  // The player's card, shown on the players page: at most one, yellow or red (a second yellow makes it red).
+  card       PlayerCard?
   published  Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -168,11 +177,12 @@ model HorseListing {
   locationKy    String
   locationRu    String
   price         Int?
-  // The listing is shown as its YouTube video (uploaded to the federation's channel); the photo is used
-  // only while there is no video.
+  // The bazaar card shows the main photo. The horse's own page shows the YouTube video (uploaded to the federation's
+  // channel) and every photo: the main one, then photoUrls.
   videoUrl      String        @default("")
   imageUrl      String        @default("")
-  // Shown behind the "contact" button over the video: buyers contact the seller directly, not the federation.
+  photoUrls     String[]      @default([])
+  // Shown on the horse's page: buyers contact the seller directly, not the federation.
   // Telegram and Instagram are kept as usernames (without @).
   sellerName      String      @default("")
   sellerPhone     String      @default("")
@@ -244,10 +254,11 @@ model MediaItem {
   updatedAt DateTime @updatedAt
 }
 
-// A yellow or red card a player received: when, optionally at which tournament, and why.
+// A player's yellow or red card: when, optionally at which tournament, and why. One per player: a second yellow
+// turns it red, and a red replaces a yellow.
 model PlayerCard {
   id           String      @id @default(cuid())
-  playerId     String
+  playerId     String      @unique
   player       Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
   color        String      // "yellow" | "red"
   date         DateTime
@@ -257,8 +268,6 @@ model PlayerCard {
   reasonRu     String      @default("")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-
-  @@index([playerId])
 }
 
 // A photo the admin uploaded, kept in the database (the host's disk is wiped on every deploy) and served at

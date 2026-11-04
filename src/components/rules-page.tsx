@@ -1,15 +1,17 @@
 "use client";
 
+import Image from "next/image";
 import { useState, type CSSProperties } from "react";
-import { ChevronDown } from "lucide-react";
+import { ArrowDown, ArrowRight, RotateCcw } from "lucide-react";
 import type { RuleSection, SiteSettings } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
 import { copy, text } from "@/lib/i18n";
 
-// The rules page as an "ала кийиз" (felt carpet): an interactive drawing of the field explains where
-// each part of play happens, and every rule is a felt panel with its own traditional symbol.
+// The rules page: a photo header (two riders on the jailoo in the evening light), then the rules as "ала кийиз"
+// (felt) cards: each shows its traditional symbol, number and title, and turns over (a tap, click or Enter) to
+// show the rule itself on its back. Rules have no pages of their own: everything is on the card.
 
-type Zone = "center" | "kazan" | "team" | "boundary";
+const headerImage = "/images/rules-riders.jpg";
 
 // Symbol key (RuleSection.symbol) → ornament file in /public/ornaments.
 const symbols: Record<string, string> = {
@@ -23,80 +25,59 @@ const symbols: Record<string, string> = {
 const symbolOrder = Object.keys(symbols);
 
 type RulesPageProps = { locale: Locale; settings: SiteSettings; rules: RuleSection[] };
+type Labels = (typeof copy)[Locale];
+
+function RuleCard({ rule, index, locale, labels }: { rule: RuleSection; index: number; locale: Locale; labels: Labels }) {
+  const [flipped, setFlipped] = useState(false);
+  const key = symbols[rule.symbol] ? rule.symbol : symbolOrder[index % symbolOrder.length];
+  const number = String(index + 1).padStart(2, "0");
+  const title = text(locale, rule.titleKy, rule.titleRu);
+  return (
+    <button type="button" className={`rule-card${flipped ? " is-flipped" : ""}`} onClick={() => setFlipped(!flipped)} aria-pressed={flipped}
+      aria-label={`${number}. ${title}: ${flipped ? labels.cardFront : labels.ruleOpen}`}>
+      <span className="rule-card-inner">
+        <span className="rule-face rule-face-front" aria-hidden={flipped}>
+          <span className="felt-symbol" style={{ "--symbol": `url("${symbols[key]}")` } as CSSProperties} aria-hidden="true" />
+          <span className="felt-index">{number}</span>
+          <strong>{title}</strong>
+          <span className="rule-card-hint"><RotateCcw size={14} aria-hidden="true" />{labels.ruleOpen}</span>
+        </span>
+        <span className="rule-face rule-face-back" aria-hidden={!flipped}>
+          <span className="rule-back-head"><span className="felt-index">{number}</span><strong>{title}</strong></span>
+          <span className="rule-back-text">{text(locale, rule.bodyKy, rule.bodyRu)}</span>
+          <span className="rule-card-hint"><RotateCcw size={14} aria-hidden="true" />{labels.cardFront}</span>
+        </span>
+      </span>
+    </button>
+  );
+}
 
 export default function RulesPage({ locale, settings, rules }: RulesPageProps) {
   const labels = copy[locale];
-  const [zone, setZone] = useState<Zone>("center");
-  const zones: [Zone, string, string][] = [
-    ["center", labels.zoneCenter, labels.zoneCenterText],
-    ["kazan", labels.zoneKazan, labels.zoneKazanText],
-    ["team", labels.zoneTeam, labels.zoneTeamText],
-    ["boundary", labels.zoneBoundary, labels.zoneBoundaryText],
-  ];
-  const active = zones.find(([id]) => id === zone) ?? zones[0];
-  const zoneProps = (id: Zone) => ({
-    className: `field-zone${zone === id ? " is-active" : ""}`,
-    onClick: () => setZone(id),
-  });
-
-  return (
-    <section className="rules-page section-wrap" id="rules">
-      <div className="section-heading">
-        <div><p className="eyebrow">{labels.rulesLabel}</p><h2>{text(locale, settings.rulesTitleKy, settings.rulesTitleRu)}</h2></div>
-      </div>
-
-      {/* Талаа: the field from above; each zone explains the play that happens there */}
-      <div className="field-layout">
-        <div className="field-art">
-          <svg viewBox="0 0 1000 540" role="img" aria-label={labels.fieldTitle}>
-            <rect className="field-ground" x="20" y="20" width="960" height="500" rx="250" />
-            <path {...zoneProps("team")} d="M270 20H500V520H270A250 250 0 0 1 270 20Z" />
-            <path {...zoneProps("team")} d="M500 20H730A250 250 0 0 1 730 520H500Z" />
-            <rect {...zoneProps("boundary")} x="20" y="20" width="960" height="500" rx="250" fill="none" strokeWidth="14" />
-            <line className="field-line" x1="500" y1="40" x2="500" y2="500" />
-            <circle {...zoneProps("center")} cx="500" cy="270" r="74" />
-            <circle className="field-mark" cx="500" cy="270" r="14" />
-            {[150, 850].map((x) => (
-              <g key={x} {...zoneProps("kazan")}>
-                <circle cx={x} cy="270" r="62" />
-                <circle className="field-kazan-ring" cx={x} cy="270" r="40" />
-              </g>
-            ))}
-            <text className="field-label" x="500" y="380">{labels.zoneCenter}</text>
-            <text className="field-label" x="150" y="370">{labels.zoneKazan}</text>
-            <text className="field-label" x="850" y="370">{labels.zoneKazan}</text>
-          </svg>
-        </div>
-        <div className="field-info" aria-live="polite">
-          <p className="eyebrow">{labels.fieldTitle}</p>
-          <h3>{active[1]}</h3>
-          <p>{active[2]}</p>
-          <div className="field-chips" role="tablist" aria-label={labels.fieldTitle}>
-            {zones.map(([id, label]) => (
-              <button key={id} type="button" role="tab" aria-selected={zone === id} className={zone === id ? "is-active" : undefined} onClick={() => setZone(id)}>{label}</button>
-            ))}
+  return <>
+    {/* Photo header, built like the horse market's and the federation's: still photo, ornament strip, dark fades */}
+    <div className="hero-shell">
+      <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
+      <section className="market-hero page-hero rules-hero">
+        <Image className="market-hero-image" src={headerImage} alt="" width={2400} height={1350} priority unoptimized />
+        <div className="photo-caption">
+          <h1 className="photo-caption-title">{text(locale, settings.rulesTitleKy, settings.rulesTitleRu)}</h1>
+          <p className="photo-caption-text">{labels.rulesCaption}</p>
+          <div className="hero-actions">
+            <button type="button" className="button button-accent" onClick={() => document.getElementById("rules")?.scrollIntoView({ behavior: "smooth" })}>{labels.rulesRead}<ArrowDown size={17} /></button>
+            <a className="hero-round-link" href={`/${locale}/calendar`}><span><ArrowRight size={16} /></span>{labels.heroAction}</a>
           </div>
         </div>
-      </div>
+      </section>
+    </div>
 
-      {/* Ала кийиз: one felt panel per rule, each with its own symbol */}
-      <div className="felt-grid">
-        {rules.map((rule, index) => {
-          const key = symbols[rule.symbol] ? rule.symbol : symbolOrder[index % symbolOrder.length];
-          return (
-            <details className="felt-panel" key={rule.id} open={index === 0}>
-              <summary>
-                <span className="felt-symbol" style={{ "--symbol": `url("${symbols[key]}")` } as CSSProperties} aria-hidden="true" />
-                <span className="felt-index">{String(index + 1).padStart(2, "0")}</span>
-                <strong>{text(locale, rule.titleKy, rule.titleRu)}</strong>
-                <ChevronDown size={19} aria-hidden="true" />
-              </summary>
-              <p>{text(locale, rule.bodyKy, rule.bodyRu)}</p>
-            </details>
-          );
-        })}
+    <section className="rules-page section-wrap" id="rules">
+
+      {/* Ала кийиз: one felt card per rule, each with its own symbol; the rule is on its back */}
+      <div className="rule-grid">
+        {rules.map((rule, index) => <RuleCard key={rule.id} rule={rule} index={index} locale={locale} labels={labels} />)}
         {!rules.length && <p className="empty-note">{locale === "ky" ? "Эрежелер жаңыртылууда." : "Правила обновляются."}</p>}
       </div>
     </section>
-  );
+  </>;
 }
