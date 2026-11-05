@@ -1,24 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowLeft,
-  CalendarDays,
   Check,
   ChevronDown,
-  FileText,
-  FolderOpen,
-  Landmark,
   LogOut,
-  Images,
-  Newspaper,
   Save,
-  Settings2,
-  CircleUserRound,
   KeyRound,
-  Tag,
   Trash2,
-  UsersRound,
-  type LucideIcon,
 } from "lucide-react";
 import type {
   AboutPhoto,
@@ -35,6 +22,7 @@ import type {
   Tournament,
 } from "@prisma/client";
 import type { Locale } from "@/lib/i18n";
+import AdminNavScroll from "@/components/admin-nav-scroll";
 import { ImageBatch, ImageField, ImageList, type BatchLabels, type ImageLabels } from "@/components/admin-image-field";
 import AdminLangHelper from "@/components/admin-lang-helper";
 import LocaleSync from "@/components/locale-sync";
@@ -53,7 +41,6 @@ import {
   deleteTournamentAction,
   logoutAction,
   saveAdminCredentialsAction,
-  saveAdminProfileAction,
   saveAboutPhotoAction,
   saveAboutPhotoBatchAction,
   saveCategoryAction,
@@ -74,7 +61,6 @@ type HorseWithCategory = HorseListing & { category: HorseCategory };
 type AdminWorkspaceProps = {
   locale: Locale;
   username: string;
-  profile: { displayName: string; photoUrl: string };
   tab: AdminTab;
   saved?: string;
   error?: string;
@@ -93,7 +79,7 @@ type AdminWorkspaceProps = {
   };
 };
 
-export const adminTabs = ["overview", "settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "profile"] as const;
+export const adminTabs = ["settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "profile"] as const;
 export type AdminTab = (typeof adminTabs)[number];
 
 // Felt-panel symbols for rules (key matches components/rules-page.tsx).
@@ -131,8 +117,6 @@ function MediaFields({ item, labels, locale, nextOrder }: { item?: MediaItem; la
 
 const ui = {
   ky: {
-    panel: "ФЕДЕРАЦИЯНЫН БАШКАРУУСУ",
-    overview: "Жалпы көрүнүш",
     settings: "Башкы бет",
     news: "Жаңылыктар",
     tournaments: "Мелдештер",
@@ -143,10 +127,6 @@ const ui = {
     mediaHint: "Медиа бөлүмү бош турганда, сайт сүрөттөрдү жаңылыктардан, оюнчулардан жана жылкылардан өзү чогултат.",
     rules: "Оюндун эрежелери",
     horses: "Ат каталогу",
-    dashboard: "Башкаруу панели",
-    welcome: "Кош келиңиз",
-    account: "Аккаунт",
-    profile: "Профилиңиз (сайттын башында көрүнөт)",
     profileNav: "Профиль",
     profileTitle: "Профиль жана кирүү",
     credentials: "Кирүү маалыматтары",
@@ -158,12 +138,9 @@ const ui = {
     saveCredentials: "Кирүү маалыматтарын жаңыртуу",
     wrongPassword: "Учурдагы сырсөз туура эмес. Эч нерсе өзгөргөн жок.",
     passwordMismatch: "Жаңы сырсөздөр дал келбейт. Эч нерсе өзгөргөн жок.",
-    displayName: "Атыңыз",
-    photoUrl: "Сүрөтүңүз",
-    backToSite: "Сайтка",
+    backToSite: "Сайтка кайтуу",
     publicSite: "Сайтты көрүү",
     logout: "Чыгуу",
-    demo: "Демо маалымат · жарыялоодон мурда текшериңиз",
     saved: "Өзгөртүүлөр сакталды",
     categoryError: "Бул категорияда жарыялар бар. Адегенде жарыяларды башка категорияга өткөрүңүз.",
     invalidError: "Сакталган жок: эки тилдеги талааларды толтуруп, маалыматты текшериңиз (мисалы, аяктоо күнү башталышынан кийин болушу керек, шилтемелер https:// менен башталат).",
@@ -229,7 +206,7 @@ const ui = {
     ends: "Аякташы",
     results: "Жыйынтык боюнча эскертүү (кааласаңыз, мисалы финалдын эсеби)",
     prizePlaces: "Байге орундары",
-    prizeNote: "Байгени мелдешти жарыялаганда жазыңыз (сайтта алдагы мелдештин астында көрүнөт). Жеңген командаларды мелдеш бүткөндөн кийин жазыңыз. Баары милдеттүү эмес.",
+    prizeNote: "Байгени мелдешти жарыялаганда жазыңыз (сайтта алдыдагы мелдештин астында көрүнөт). Жеңген командаларды мелдеш бүткөндөн кийин жазыңыз. Баары милдеттүү эмес.",
     prize: "Байге (мисалы: 500 000 сом, автоунаа)",
     winnerTeam: "Жеңген команда",
     published: "Сайтка жарыялоо",
@@ -294,8 +271,6 @@ const ui = {
     milestoneText: "Кыскача маалымат (кааласаңыз)",
   },
   ru: {
-    panel: "УПРАВЛЕНИЕ ФЕДЕРАЦИЕЙ",
-    overview: "Обзор",
     settings: "Главная страница",
     news: "Новости",
     tournaments: "Соревнования",
@@ -306,10 +281,6 @@ const ui = {
     mediaHint: "Пока раздел пуст, сайт сам собирает фото из новостей, игроков и лошадей.",
     rules: "Правила игры",
     horses: "Каталог лошадей",
-    dashboard: "Панель управления",
-    welcome: "Добро пожаловать",
-    account: "Аккаунт",
-    profile: "Ваш профиль (виден в шапке сайта)",
     profileNav: "Профиль",
     profileTitle: "Профиль и вход",
     credentials: "Данные для входа",
@@ -321,12 +292,9 @@ const ui = {
     saveCredentials: "Обновить данные для входа",
     wrongPassword: "Текущий пароль неверный. Ничего не изменено.",
     passwordMismatch: "Новые пароли не совпадают. Ничего не изменено.",
-    displayName: "Ваше имя",
-    photoUrl: "Ваше фото",
-    backToSite: "На сайт",
+    backToSite: "Вернуться на сайт",
     publicSite: "Открыть сайт",
     logout: "Выйти",
-    demo: "Демо-данные · проверьте перед публикацией",
     saved: "Изменения сохранены",
     categoryError: "В этой категории есть объявления. Сначала перенесите их в другую категорию.",
     invalidError: "Не сохранено: заполните поля на обоих языках и проверьте данные (например, дата окончания должна быть позже начала, ссылки начинаются с https://).",
@@ -581,7 +549,7 @@ function HorseFields({ horse, categories, labels }: { horse?: HorseListing; cate
       <Pair field="location" label={labels.location} ky={horse?.locationKy} ru={horse?.locationRu} /><Pair field="description" label={labels.description} ky={horse?.descriptionKy} ru={horse?.descriptionRu} multiline />
       <Field name="videoUrl" label={labels.horseVideo} type="url" value={horse?.videoUrl} required={false} />
       <Field name="price" label={labels.price} type="number" value={horse?.price ?? ""} required={false} />
-      <ImageField name="imageUrl" label={labels.horsePhoto} value={horse?.imageUrl} required={false} labels={imageLabels(labels)} />
+      <ImageField name="imageUrl" label={labels.horsePhoto} value={horse?.imageUrl} required={false} aspect="16:9" labels={imageLabels(labels)} />
       <ImageList name="photoUrls" label={labels.horsePhotos} values={horse?.photoUrls} labels={imageLabels(labels)} />
       <label className="admin-field">{labels.category}<select name="categoryId" required defaultValue={horse?.categoryId ?? ""}>
         {!horse && <option value="" disabled>—</option>}
@@ -621,24 +589,23 @@ function datetimeLocal(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export default function AdminWorkspace({ locale, username, profile, tab, saved, error, data }: AdminWorkspaceProps) {
+export default function AdminWorkspace({ locale, username, tab, saved, error, data }: AdminWorkspaceProps) {
   const labels = ui[locale];
-  const tabHref = (id: AdminTab, lang: Locale = locale) => `/admin/settings?lang=${lang}${id === "overview" ? "" : `&tab=${id}`}`;
+  const tabHref = (id: AdminTab, lang: Locale = locale) => `/admin/settings?lang=${lang}${id === "settings" ? "" : `&tab=${id}`}`;
   // Same order as the public site's top navigation (the home page settings stand where "Home" is).
-  const nav: [AdminTab, string, LucideIcon, number?][] = [
-    ["overview", labels.overview, FolderOpen],
-    ["settings", labels.settings, Settings2],
-    ["federation", labels.federation, Landmark, data.members.length],
-    ["tournaments", labels.tournaments, CalendarDays, data.tournaments.length],
-    ["players", labels.players, UsersRound, data.players.length],
-    ["news", labels.news, Newspaper, data.articles.length],
-    ["media", labels.media, Images, data.mediaItems.length],
-    ["rules", labels.rules, FileText, data.rules.length],
-    ["horses", labels.horses, Tag, data.horses.length],
-    ["profile", labels.profileNav, CircleUserRound],
+  const nav: [AdminTab, string][] = [
+    ["settings", labels.settings],
+    ["federation", labels.federation],
+    ["tournaments", labels.tournaments],
+    ["players", labels.players],
+    ["news", labels.news],
+    ["media", labels.media],
+    ["rules", labels.rules],
+    ["horses", labels.horses],
+    ["profile", labels.profileNav],
   ];
   const titles: Record<AdminTab, string> = {
-    overview: labels.dashboard, profile: labels.profileTitle, settings: labels.settingsTitle, news: labels.news, tournaments: labels.schedule,
+    profile: labels.profileTitle, settings: labels.settingsTitle, news: labels.news, tournaments: labels.schedule,
     players: labels.players, media: labels.media, rules: labels.rulesSection, horses: labels.horses, federation: labels.federation,
   };
 
@@ -646,73 +613,27 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
     <main className="admin-app">
       <LocaleSync locale={locale} />
       <AdminLangHelper />
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <span className="admin-brand-mark" aria-hidden="true" />
-          <span><strong>{data.settings.brandName}</strong><small>{labels.panel}</small></span>
-        </div>
+      <AdminNavScroll tab={tab} />
+      <header className="admin-header">
         <nav className="admin-nav">
-          {nav.map(([id, label, Icon, count]) => (
-            <Link key={id} href={tabHref(id)} className={id === tab ? "is-active" : undefined} aria-current={id === tab ? "page" : undefined}>
-              <Icon size={17} aria-hidden="true" />
-              <span>{label}</span>
-              {count !== undefined && <small>{count}</small>}
-            </Link>
+          {nav.map(([id, label]) => (
+            <Link key={id} href={tabHref(id)} className={id === tab ? "is-active" : undefined} aria-current={id === tab ? "page" : undefined}>{label}</Link>
           ))}
+          <span className="admin-nav-divider" aria-hidden="true" />
+          <a href={`/${locale}`}>{labels.backToSite}</a>
         </nav>
-        <div className="admin-sidebar-bottom">
-          <Link className="admin-user" href={tabHref("profile")} title={labels.profileTitle}>
-            <Image className="admin-user-photo" src={profile.photoUrl || "/images/admin-demo.svg"} alt="" width={64} height={64} unoptimized />
-            <span><small>{labels.account}</small><strong>{profile.displayName || username}</strong></span>
-          </Link>
-          <form action={logoutAction}><button className="admin-logout" type="submit" title={labels.logout} aria-label={labels.logout}><LogOut size={16} /></button></form>
-        </div>
-      </aside>
+        {saved && <p className="admin-toast" key={saved} role="status"><Check size={15} />{labels.saved}</p>}
+      </header>
 
       <div className="admin-main">
-        <header className="admin-topbar">
-          {/* Back to the site, which shows the admin's avatar in its header */}
-          <a className="admin-back-to-site" href={`/${locale}`}><ArrowLeft size={16} />{labels.backToSite}</a>
-          <div className="admin-topbar-title"><span className="admin-breadcrumb">{labels.panel}</span><h1>{titles[tab]}</h1></div>
-          <div className="admin-top-actions">
-            {saved && <p className="admin-toast" key={saved} role="status"><Check size={15} />{labels.saved}</p>}
-            <Link className="language-switch" href={tabHref(tab, locale === "ky" ? "ru" : "ky")}>{locale === "ky" ? "RU" : "КЫР"}</Link>
-          </div>
-        </header>
-
         <div className="admin-content">
+          <h1 className="admin-page-title">{titles[tab]}</h1>
           {error === "category-used" && <p className="admin-flash admin-flash-error">{labels.categoryError}</p>}
           {error === "invalid" && <p className="admin-flash admin-flash-error">{labels.invalidError}</p>}
           {error === "wrong-password" && <p className="admin-flash admin-flash-error">{labels.wrongPassword}</p>}
           {error === "password-mismatch" && <p className="admin-flash admin-flash-error">{labels.passwordMismatch}</p>}
 
-          {tab === "overview" && <>
-            <section className="admin-welcome">
-              <p className="eyebrow">{labels.welcome}, {username}</p>
-              <h2>{labels.dashboard}</h2>
-              <p>{labels.demo}</p>
-            </section>
-            <div className="admin-metrics">
-              {nav.filter(([, , , count]) => count !== undefined).map(([id, label, Icon, count]) => (
-                <Link className="admin-metric" key={id} href={tabHref(id)}>
-                  <Icon size={18} aria-hidden="true" />
-                  <strong>{count}</strong>
-                  <span>{label}</span>
-                </Link>
-              ))}
-            </div>
-          </>}
-
           {tab === "profile" && <section className="admin-section">
-            <form action={saveAdminProfileAction} className="admin-form">
-              <input type="hidden" name="locale" value={locale} />
-              <h3 className="admin-subheading">{labels.profile}</h3>
-              <div className="admin-form-grid">
-                <Field name="displayName" label={labels.displayName} value={profile.displayName} required={false} />
-                <ImageField name="photoUrl" label={labels.photoUrl} value={profile.photoUrl} required={false} aspect="1:1" labels={imageLabels(labels)} />
-              </div>
-              <div className="admin-form-actions"><button className="admin-save" type="submit"><Save size={15} />{labels.save}</button></div>
-            </form>
             {/* Sign-in username and password: confirmed with the current password */}
             <form action={saveAdminCredentialsAction} className="admin-form" autoComplete="off">
               <input type="hidden" name="locale" value={locale} />
@@ -725,6 +646,10 @@ export default function AdminWorkspace({ locale, username, profile, tab, saved, 
                 <label className="admin-field">{labels.confirmPassword}<input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} maxLength={128} /></label>
               </div>
               <div className="admin-form-actions"><button className="admin-save" type="submit"><KeyRound size={15} />{labels.saveCredentials}</button></div>
+            </form>
+            <form action={logoutAction} className="admin-form">
+              <input type="hidden" name="locale" value={locale} />
+              <div className="admin-form-actions"><button className="admin-save" type="submit"><LogOut size={15} aria-hidden="true" />{labels.logout}</button></div>
             </form>
           </section>}
 

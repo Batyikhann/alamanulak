@@ -30,10 +30,8 @@ function tokenHash(token: string) {
 async function beginSession() {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_SECONDS * 1000);
-  await db.adminAccount.update({
-    where: { id: ADMIN_ID },
-    data: { sessionTokenHash: tokenHash(token), sessionExpiresAt: expiresAt },
-  });
+  await db.adminSession.deleteMany({ where: { expiresAt: { lte: new Date() } } });
+  await db.adminSession.create({ data: { tokenHash: tokenHash(token), expiresAt } });
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -69,7 +67,7 @@ export async function loginAdmin(username: string, password: string) {
 }
 
 // The admin changes their own sign-in username and/or password, confirming with the current password.
-// A new session starts (the old token stops working), so the admin stays signed in on this device only.
+// Every session ends and a new one starts, so the admin stays signed in on this device only.
 export async function changeAdminCredentials(currentPassword: string, username: string, newPassword: string) {
   const admin = await db.adminAccount.findUnique({ where: { id: ADMIN_ID } });
   if (!admin || !(await passwordMatches(currentPassword, admin.passwordHash))) return false;
@@ -77,6 +75,7 @@ export async function changeAdminCredentials(currentPassword: string, username: 
     where: { id: ADMIN_ID },
     data: { username, ...(newPassword ? { passwordHash: await passwordHash(newPassword) } : {}) },
   });
+  await db.adminSession.deleteMany();
   await beginSession();
   return true;
 }
@@ -85,26 +84,14 @@ export async function isAdminAuthenticated() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return false;
-  const admin = await db.adminAccount.findUnique({ where: { id: ADMIN_ID } });
-  if (!admin?.sessionTokenHash || !admin.sessionExpiresAt) return false;
-  if (admin.sessionExpiresAt.getTime() <= Date.now()) return false;
-  const actual = Buffer.from(tokenHash(token), "hex");
-  const expected = Buffer.from(admin.sessionTokenHash, "hex");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  const session = await db.adminSession.findUnique({ where: { tokenHash: tokenHash(token) } });
+  return Boolean(session && session.expiresAt.getTime() > Date.now());
 }
 
 export async function endAdminSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (token) {
-    const admin = await db.adminAccount.findUnique({ where: { id: ADMIN_ID } });
-    if (admin?.sessionTokenHash === tokenHash(token)) {
-      await db.adminAccount.update({
-        where: { id: ADMIN_ID },
-        data: { sessionTokenHash: null, sessionExpiresAt: null },
-      });
-    }
-  }
+  if (token) await db.adminSession.deleteMany({ where: { tokenHash: tokenHash(token) } });
   cookieStore.set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
 }
 

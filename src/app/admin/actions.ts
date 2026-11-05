@@ -36,7 +36,7 @@ async function authorize() {
   if (!(await isAdminAuthenticated())) throw new Error("Unauthorized");
 }
 
-const adminTabs = ["overview", "settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "profile"];
+const adminTabs = ["settings", "news", "tournaments", "players", "media", "rules", "horses", "federation", "profile"];
 
 // Back to the admin section the form was sent from (read from the referring URL), so a save
 // keeps you where you were. `saved` carries a timestamp: the site preview reloads when it changes.
@@ -72,21 +72,6 @@ async function guard(formData: FormData, action: (formData: FormData) => Promise
 }
 
 // The admin's own name and photo, shown in the site header.
-export async function saveAdminProfileAction(formData: FormData) {
-  await guard(formData, saveAdminProfileActionChecked);
-}
-
-async function saveAdminProfileActionChecked(formData: FormData) {
-  await authorize();
-  const parsed = z.object({
-    displayName: z.string().trim().max(80),
-    photoUrl: z.string().trim().max(500).refine((value) => !value || value.startsWith("https://") || (value.startsWith("/") && !value.startsWith("//"))),
-  }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) invalid();
-  await db.adminAccount.update({ where: { id: "federation-admin" }, data: parsed.data });
-  await finish(localeValue(formData));
-}
-
 // The sign-in username and password. The current password confirms the change; a new password is optional
 // (left empty, only the username changes) and, as at first setup, has at least 12 characters, typed twice.
 export async function saveAdminCredentialsAction(formData: FormData) {
@@ -110,9 +95,9 @@ async function saveAdminCredentialsActionChecked(formData: FormData) {
   await finish(locale);
 }
 
-export async function logoutAction() {
+export async function logoutAction(formData: FormData) {
   await endAdminSession();
-  redirect("/admin?lang=ky");
+  redirect(`/admin?lang=${localeValue(formData)}`);
 }
 
 export async function saveSettingsAction(formData: FormData) {

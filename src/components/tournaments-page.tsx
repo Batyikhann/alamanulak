@@ -125,13 +125,13 @@ export default function TournamentsPage({ locale, settings, tournaments }: Tourn
       </div>
     </section>
 
-    {/* Алдагы мелдештер: one card per tournament, the nearest first */}
+    {/* Алдыдагы мелдештер: one card per tournament, the nearest first */}
     <section className="home-row tn-section tn-upcoming">
       <div className="section-wrap">
         <div className="section-heading fed-heading"><h2>{labels.upcomingTitle}</h2></div>
         {!upcoming.length && <p className="empty-note">{labels.upcomingEmpty}</p>}
         {upcoming.length > 0 && <div className="news-grid tn-grid">
-          {upcoming.map((item) => <TournamentCard key={item.id} item={item} locale={locale} now={now} isNext={item.id === next?.id} />)}
+          {upcoming.map((item) => <TournamentCard key={item.id} item={item} locale={locale} now={now} />)}
         </div>}
       </div>
     </section>

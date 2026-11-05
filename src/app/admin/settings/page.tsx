@@ -35,15 +35,14 @@ export default async function AdminSettingsPage({ searchParams }: AdminPageProps
   ]);
 
   if (!settings) notFound();
-  const tab: AdminTab = adminTabs.includes(query.tab as AdminTab) ? query.tab as AdminTab : "overview";
-  const account = await db.adminAccount.findUnique({ where: { id: "federation-admin" }, select: { username: true, displayName: true, photoUrl: true } });
+  const tab: AdminTab = adminTabs.includes(query.tab as AdminTab) ? query.tab as AdminTab : "settings";
+  const account = await db.adminAccount.findUnique({ where: { id: "federation-admin" }, select: { username: true } });
   if (!account) notFound();
 
   return (
     <AdminWorkspace
       locale={locale}
       username={account.username}
-      profile={{ displayName: account.displayName, photoUrl: account.photoUrl }}
       tab={tab}
       saved={query.saved}
       error={query.error}

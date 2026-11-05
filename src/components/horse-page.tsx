@@ -1,18 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowLeft, CalendarDays, Mail, MapPin, Phone, Play, Ribbon, Share2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, MapPin, Phone, Play, Ribbon, Share2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { HorseCategory, HorseListing } from "@prisma/client";
+import MarketCard from "@/components/market-card";
 import { youtubeId } from "@/components/media-page";
 import { copy, text, type Locale } from "@/lib/i18n";
 
-// One horse from the bazaar on its own page: its video and every uploaded photo (a large view with a row of
+// One horse from the bazaar on its own page: its video and every uploaded photo (a wide 16:9 view with a row of
 // thumbnails to switch between them), the details, and the seller's contacts — phone and WhatsApp first, as large
 // buttons, then Telegram and Instagram. Until the admin adds the seller's contacts, the federation's are offered.
+// Below, one row of other horses to look at.
 
 type Horse = HorseListing & { category: HorseCategory };
-type Contacts = { phone: string; email: string; social: string };
+export type Contacts = { phone: string; whatsapp: string; social: string };
 type Option = { key: string; icon: ReactNode; label: string; value: string; href: string };
 type View = { kind: "video"; id: string } | { kind: "photo"; src: string };
 
@@ -25,9 +27,11 @@ const digits = (phone: string) => phone.replace(/[^\d]/g, "");
 
 // The seller's ways to be reached: [main (phone, WhatsApp), more (Telegram, Instagram)].
 function sellerOptions(horse: Horse, callLabel: string): [Option[], Option[]] {
+  // A seller without a WhatsApp number of their own is offered on their phone number
+  const whatsapp = horse.sellerWhatsapp || horse.sellerPhone;
   const main: (Option | false)[] = [
     !!horse.sellerPhone && { key: "phone", icon: <Phone size={20} />, label: callLabel, value: horse.sellerPhone, href: `tel:+${digits(horse.sellerPhone)}` },
-    !!horse.sellerWhatsapp && { key: "whatsapp", icon: <WhatsAppIcon />, label: "WhatsApp", value: horse.sellerWhatsapp, href: `https://wa.me/${digits(horse.sellerWhatsapp)}` },
+    !!whatsapp && { key: "whatsapp", icon: <WhatsAppIcon />, label: "WhatsApp", value: whatsapp, href: `https://wa.me/${digits(whatsapp)}` },
   ];
   const more: (Option | false)[] = [
     !!horse.sellerTelegram && { key: "telegram", icon: <TelegramIcon />, label: "Telegram", value: `@${horse.sellerTelegram}`, href: `https://t.me/${horse.sellerTelegram}` },
@@ -40,7 +44,7 @@ function sellerOptions(horse: Horse, callLabel: string): [Option[], Option[]] {
 export function federationOptions(contacts: Contacts, callLabel: string): Option[] {
   const options: (Option | false)[] = [
     !!contacts.phone && { key: "phone", icon: <Phone size={20} />, label: callLabel, value: contacts.phone, href: `tel:+${digits(contacts.phone)}` },
-    !!contacts.email && { key: "email", icon: <Mail size={18} />, label: "Email", value: contacts.email, href: `mailto:${contacts.email}` },
+    !!contacts.whatsapp && { key: "whatsapp", icon: <WhatsAppIcon />, label: "WhatsApp", value: contacts.whatsapp, href: `https://wa.me/${digits(contacts.whatsapp)}` },
     !!contacts.social && { key: "social", icon: <Share2 size={18} />, label: contacts.social.replace(/^https:\/\/(www\.)?/, "").split("/")[0], value: contacts.social.replace(/^https:\/\/(www\.)?/, ""), href: contacts.social },
   ];
   return options.filter((option): option is Option => Boolean(option));
@@ -56,45 +60,58 @@ export function ContactLink({ option, large = false }: { option: Option; large?:
   );
 }
 
-export default function HorsePage({ horse, locale, contacts, price }: { horse: Horse; locale: Locale; contacts: Contacts; price: string }) {
+// A horse's card, in the bazaar and in the row under a horse's page.
+export function HorseCard({ horse, locale, price }: { horse: Horse; locale: Locale; price: (value: number | null) => string }) {
   const labels = copy[locale];
-  const name = text(locale, horse.nameKy, horse.nameRu);
-  const videoId = youtubeId(horse.videoUrl);
-  const photos = [...new Set([horse.imageUrl, ...horse.photoUrls].filter(Boolean))];
-  const views: View[] = [...(videoId ? [{ kind: "video", id: videoId } as const] : []), ...photos.map((src) => ({ kind: "photo", src }) as const)];
+  const video = youtubeId(horse.videoUrl);
+  return <MarketCard href={`/${locale}/horses/${horse.id}`} title={text(locale, horse.nameKy, horse.nameRu)} tag={text(locale, horse.category.nameKy, horse.category.nameRu)}
+    image={horse.imageUrl || horse.photoUrls[0] || (video ? `https://i.ytimg.com/vi/${video}/hqdefault.jpg` : "")}
+    facts={[{ icon: CalendarDays, text: text(locale, horse.ageKy, horse.ageRu) }, { icon: MapPin, text: text(locale, horse.locationKy, horse.locationRu) }]}
+    price={price(horse.price)} moreLabel={labels.moreDetails} />;
+}
+
+// A bazaar item's own page, the same for a horse and a piece of equipment: `views` are its video and photos.
+export function MarketPage({ locale, backHref, name, price, views, aboutTitle, about, facts, contact, moreTitle, more, long = false }: {
+  locale: Locale;
+  backHref: string;
+  name: string;
+  price: string;
+  views: View[];
+  aboutTitle: string;
+  about: string;
+  facts: [ReactNode, string, string][];
+  contact: ReactNode;
+  moreTitle: string;
+  more: ReactNode[];
+  long?: boolean;
+}) {
+  const labels = copy[locale];
   const [current, setCurrent] = useState(0);
   const view = views[current];
-  const [main, more] = sellerOptions(horse, labels.sellerCall);
-  const ownContacts = main.length + more.length > 0;
-  const facts: [ReactNode, string, string][] = [
-    [<Ribbon size={16} key="breed" />, labels.breed, text(locale, horse.category.nameKy, horse.category.nameRu)],
-    [<CalendarDays size={16} key="age" />, labels.horseAge, text(locale, horse.ageKy, horse.ageRu)],
-    [<MapPin size={16} key="region" />, labels.region, text(locale, horse.locationKy, horse.locationRu)],
-  ];
 
   return (
     <section className="horse-page section-wrap">
-      <a className="horse-page-back" href={`/${locale}/horses`}><ArrowLeft size={16} />{labels.backToMarket}</a>
+      <a className="horse-page-back" href={backHref}><ArrowLeft size={16} />{labels.backToMarket}</a>
       <div className="horse-page-grid">
         <div className="horse-page-media">
           <div className="horse-page-stage">
             {view?.kind === "video" && <iframe src={`https://www.youtube-nocookie.com/embed/${view.id}`} title={name} allow="encrypted-media; picture-in-picture" allowFullScreen />}
-            {view?.kind === "photo" && <Image src={view.src} alt={name} width={1400} height={1050} unoptimized priority />}
+            {view?.kind === "photo" && <Image src={view.src} alt={name} width={1600} height={900} unoptimized priority />}
             {!view && <span className="horse-video-blank" aria-hidden="true" />}
           </div>
           {views.length > 1 && <div className="horse-page-thumbs" role="tablist" aria-label={name}>
             {views.map((item, index) => (
               <button type="button" role="tab" aria-selected={index === current} key={item.kind === "video" ? "video" : item.src}
                 className={index === current ? "is-active" : undefined} onClick={() => setCurrent(index)}
-                aria-label={item.kind === "video" ? labels.playVideo : `${name} ${index + (videoId ? 0 : 1)}`}>
-                <Image src={item.kind === "video" ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : item.src} alt="" width={240} height={180} unoptimized />
+                aria-label={item.kind === "video" ? labels.playVideo : `${name} ${index + (views[0].kind === "video" ? 0 : 1)}`}>
+                <Image src={item.kind === "video" ? `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg` : item.src} alt="" width={240} height={135} unoptimized />
                 {item.kind === "video" && <span className="horse-page-thumb-play" aria-hidden="true"><Play size={16} /></span>}
               </button>
             ))}
           </div>}
           <div className="horse-page-about">
-            <h2>{labels.horseAbout}</h2>
-            <p>{text(locale, horse.descriptionKy, horse.descriptionRu)}</p>
+            <h2>{aboutTitle}</h2>
+            <p>{about}</p>
           </div>
         </div>
 
@@ -106,19 +123,44 @@ export default function HorsePage({ horse, locale, contacts, price }: { horse: H
           </dl>
           <div className="horse-page-contact">
             <h2>{labels.sellerContactTitle}</h2>
-            {ownContacts
-              ? <>
-                  {horse.sellerName && <p className="horse-page-seller">{horse.sellerName}</p>}
-                  {main.length > 0 && <div className="horse-contact-main">{main.map((option) => <ContactLink option={option} large key={option.key} />)}</div>}
-                  {more.length > 0 && <div className="horse-contact-more">{more.map((option) => <ContactLink option={option} key={option.key} />)}</div>}
-                </>
-              : <>
-                  <p className="horse-page-note">{labels.sellerContactFallback}</p>
-                  <div className="horse-contact-more">{federationOptions(contacts, labels.sellerCall).map((option) => <ContactLink option={option} key={option.key} />)}</div>
-                </>}
+            {contact}
           </div>
         </aside>
       </div>
+
+      {more.length > 0 && <section className="detail-more">
+        <h2>{moreTitle}</h2>
+        <div className={`horse-more-row${long ? " is-long" : ""}`}>{more}</div>
+      </section>}
     </section>
   );
+}
+
+export default function HorsePage({ horse, recommended, locale, contacts, price }: { horse: Horse; recommended: Horse[]; locale: Locale; contacts: Contacts; price: (value: number | null) => string }) {
+  const labels = copy[locale];
+  const videoId = youtubeId(horse.videoUrl);
+  const photos = [...new Set([horse.imageUrl, ...horse.photoUrls].filter(Boolean))];
+  const views: View[] = [...(videoId ? [{ kind: "video", id: videoId } as const] : []), ...photos.map((src) => ({ kind: "photo", src }) as const)];
+  const [main, more] = sellerOptions(horse, labels.sellerCall);
+  const ownContacts = main.length + more.length > 0;
+
+  return <MarketPage locale={locale} backHref={`/${locale}/horses`} name={text(locale, horse.nameKy, horse.nameRu)} price={price(horse.price)} views={views}
+    aboutTitle={labels.horseAbout} about={text(locale, horse.descriptionKy, horse.descriptionRu)}
+    facts={[
+      [<Ribbon size={16} key="breed" />, labels.breed, text(locale, horse.category.nameKy, horse.category.nameRu)],
+      [<CalendarDays size={16} key="age" />, labels.horseAge, text(locale, horse.ageKy, horse.ageRu)],
+      [<MapPin size={16} key="region" />, labels.region, text(locale, horse.locationKy, horse.locationRu)],
+    ]}
+    contact={ownContacts
+      ? <>
+          {horse.sellerName && <p className="horse-page-seller">{horse.sellerName}</p>}
+          {main.length > 0 && <div className="horse-contact-main">{main.map((option) => <ContactLink option={option} large key={option.key} />)}</div>}
+          {more.length > 0 && <div className="horse-contact-more">{more.map((option) => <ContactLink option={option} key={option.key} />)}</div>}
+        </>
+      : <>
+          <p className="horse-page-note">{labels.sellerContactFallback}</p>
+          <div className="horse-contact-main">{federationOptions(contacts, labels.sellerCall).map((option) => <ContactLink option={option} large key={option.key} />)}</div>
+        </>}
+    moreTitle={labels.horseRecommended}
+    more={recommended.map((item) => <HorseCard key={item.id} horse={item} locale={locale} price={price} />)} />;
 }

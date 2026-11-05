@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+const title = "Alaman Ulak | Улак тартыш федерациясы";
+const description = "Alaman Ulak federation — the home of Kyrgyz ulak tartysh.";
+
+// The site's name, text and logo (opengraph-image.png) when a link to it is shared
 export const metadata: Metadata = {
-  title: "Alaman Ulak | Улак тартыш федерациясы",
-  description: "Alaman Ulak federation — the home of Kyrgyz ulak tartysh.",
+  metadataBase: new URL("https://alamanulak.onrender.com"),
+  title,
+  description,
+  openGraph: { title, description, siteName: "Alaman Ulak", type: "website" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

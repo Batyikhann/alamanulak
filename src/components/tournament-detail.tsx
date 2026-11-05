@@ -11,11 +11,10 @@ import { copy, text, type Locale } from "@/lib/i18n";
 // beside it the time left with "add to calendar" (before it), the prize places (the prizes before it, the winning
 // teams after) and the result note; below, a few other tournaments.
 
-export default function TournamentDetail({ item, locale, isNext, others }: { item: LocalizedTournament; locale: Locale; isNext: boolean; others: LocalizedTournament[] }) {
+export default function TournamentDetail({ item, locale, others }: { item: LocalizedTournament; locale: Locale; others: LocalizedTournament[] }) {
   const labels = copy[locale];
   const title = text(locale, item.titleKy, item.titleRu);
   const place = text(locale, item.locationKy, item.locationRu);
-  const status = item.isPast ? labels.result : isNext ? labels.nextRace : labels.upcoming;
   const description = text(locale, item.descriptionKy, item.descriptionRu);
   const note = text(locale, item.resultSummaryKy, item.resultSummaryRu);
   const places = ([1, 2, 3] as const).map((rank) => ({
@@ -37,7 +36,7 @@ export default function TournamentDetail({ item, locale, isNext, others }: { ite
     <article className="detail-page section-wrap">
       <a className="detail-back" href={`/${locale}/calendar`}><ArrowLeft size={16} aria-hidden="true" />{labels.allTournaments}</a>
       <header className="detail-head">
-        <span className={`detail-status${item.isPast ? " is-past" : ""}`}>{status}</span>
+        {item.isPast && <span className="detail-status is-past">{labels.result}</span>}
         <h1>{title}</h1>
         <p className="detail-meta">
           <span><MapPin size={15} aria-hidden="true" />{place}</span>

@@ -64,19 +64,17 @@ export function countdown(item: LocalizedTournament, now: number | null, labels:
   return left ? left.map(([value, unit]) => `${value} ${unit}`).join(" ") : labels.raceRunning;
 }
 
-export default function TournamentCard({ item, locale, isNext = false, now = null }: { item: LocalizedTournament; locale: Locale; isNext?: boolean; now?: number | null }) {
+export default function TournamentCard({ item, locale, now = null }: { item: LocalizedTournament; locale: Locale; now?: number | null }) {
   const labels = copy[locale];
   const href = tournamentHref(locale, item);
   const title = text(locale, item.titleKy, item.titleRu);
-  const status = item.isPast ? labels.result : isNext ? labels.nextRace : labels.upcoming;
   const winner = item.isPast ? text(locale, item.winner1Ky, item.winner1Ru) || text(locale, item.resultSummaryKy, item.resultSummaryRu) : "";
   const prize = item.isPast ? "" : text(locale, item.prize1Ky, item.prize1Ru);
   const left = countdown(item, now, labels);
   return (
-    <article className={`card news-card tn-card${item.isPast ? " is-past" : ""}${isNext ? " is-next" : ""}`}>
+    <article className={`card news-card tn-card${item.isPast ? " is-past" : ""}`}>
       <a className="news-image-wrap" href={href} tabIndex={-1} aria-hidden="true">
         <Image src={tournamentPhoto(item)} alt="" width={900} height={500} unoptimized />
-        <span className="tn-card-status">{status}</span>
       </a>
       <div className="news-card-body">
         <time dateTime={item.startsAt}>{dateRange(item, locale)}</time>

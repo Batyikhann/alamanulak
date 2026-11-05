@@ -42,8 +42,10 @@ import PageLead from "@/components/page-lead";
 import LocaleSync from "@/components/locale-sync";
 import { FilterBar, type FilterField } from "@/components/filter-bar";
 import BazaarCatalog from "@/components/bazaar-catalog";
+import EquipmentPage from "@/components/equipment-page";
 import HorsePage from "@/components/horse-page";
 import { FacebookIcon, InstagramIcon, WhatsappIcon } from "@/components/social-icons";
+import { demoEquipment, type Equipment } from "@/lib/demo-equipment";
 import type {
   FederationMember,
   HistoryMilestone,
@@ -292,15 +294,6 @@ function NewsPager({ newsPage, locale, labels }: { newsPage: NewsPage; locale: L
 
 // A home row's heading, centred like the about page's: a label between rosettes, the title, an
 // ornament band and a line about the section; tabs (if any) sit under it.
-// The signed-in admin's round avatar: their photo, or a demo picture until they upload one in the settings.
-function AdminAvatar({ admin }: { admin: { name: string; photoUrl: string } }) {
-  return (
-    <span className="admin-avatar" aria-hidden="true">
-      <Image src={admin.photoUrl || "/images/admin-demo.svg"} alt="" width={80} height={80} unoptimized />
-    </span>
-  );
-}
-
 // A row's heading, on the left like a page's chapter title: the title and a line about the row; tabs (if any)
 // and the link to the whole section sit on the right.
 function RowHeading({ title, subtitle, link, children }: { title: string; subtitle: string; link?: { href: string; label: string }; children?: ReactNode }) {
@@ -591,6 +584,15 @@ export default function HomeExperience({
   const homeMediaOrder = [0, 1, 2, 3, 4, 6, 5];
 
   const horsePage = horseId ? horses.find((horse) => horse.id === horseId) : undefined;
+  // Under a horse's page: six others in the visitor's order, the same breed first.
+  const sameBreed = (horse: (typeof horses)[number]) => Number(horse.categoryId === horsePage?.categoryId);
+  const recommendedHorses = horsePage ? shuffled(horses.filter((horse) => horse.id !== horsePage.id), orderSeed).sort((a, b) => sameBreed(b) - sameBreed(a)).slice(0, 6) : [];
+  const equipmentPage = horseId ? demoEquipment.find((item) => item.id === horseId) : undefined;
+  // The federation's contacts on a bazaar item's page; without a WhatsApp number of its own, its phone number is offered
+  const marketContacts = { phone: settings.contactPhone, whatsapp: settings.whatsappNumber || settings.contactPhone, social: settings.socialUrl };
+  // Under an equipment item's page: six others in the visitor's order, the same type first.
+  const sameType = (item: Equipment) => Number(item.type === equipmentPage?.type);
+  const recommendedEquipment = equipmentPage ? shuffled(demoEquipment.filter((item) => item.id !== equipmentPage.id), orderSeed).sort((a, b) => sameType(b) - sameType(a)).slice(0, 6) : [];
   const tournamentPage = tournamentId ? tournaments.find((item) => item.id === tournamentId) : undefined;
   // Below a tournament's page: the next upcoming ones (or, with none left, the latest results); below an article, the latest others.
   const otherTournaments = tournamentPage ? [...upcoming, ...past].filter((item) => item.id !== tournamentPage.id).slice(0, 3) : [];
@@ -618,7 +620,7 @@ export default function HomeExperience({
 
   // The other language, named in that language so its readers recognise it: "Русский" on the Kyrgyz site, "Кыргызча" on the Russian one.
   const otherLanguage = {
-    href: `/${locale === "ky" ? "ru" : "ky"}${section ? `/${section}` : ""}${horsePage ? `/${horsePage.id}` : tournamentPage ? `/${tournamentPage.id}` : article ? `/${article.id}` : ""}`,
+    href: `/${locale === "ky" ? "ru" : "ky"}${section ? `/${section}` : ""}${horseId ? `/${horseId}` : tournamentPage ? `/${tournamentPage.id}` : article ? `/${article.id}` : ""}`,
     hrefLang: locale === "ky" ? "ru" : "ky",
     name: locale === "ky" ? "Русский" : "Кыргызча",
   };
@@ -636,6 +638,8 @@ export default function HomeExperience({
       <Languages size={16} aria-hidden="true" />
     </a>
   );
+  // The signed-in admin's link to the admin settings, written and set apart like the language switch
+  const adminLink = admin && <span className="lang-toggle"><a href={`/admin/settings?lang=${locale}`} title={`${admin.name} · ${labels.adminSettings}`}>{labels.adminNav}</a></span>;
   // The site search bar (navbar panel, and the phone menu): the search mark at its right end runs it.
   const searchForm = (onEscape: () => void, autoFocus = false) => (
     <form className="search-field" role="search" onSubmit={(event) => { event.preventDefault(); setSearched(query); }}>
@@ -669,15 +673,15 @@ export default function HomeExperience({
           {/* Wide screens: the language switch follows the sections, set apart by a thin line */}
           <span className="nav-divider" aria-hidden="true" />
           <span className="lang-toggle">{languageLink}</span>
+          {admin && <span className="nav-divider" aria-hidden="true" />}
+          {adminLink}
         </nav>
         <div className="header-actions">
-          {/* Narrower screens (no section links in the bar): the language switch beside the search and menu buttons;
+          {/* Narrower screens (no section links in the bar): the language switch beside the menu button;
               on phones it is in the menu instead. Only the other language is offered. */}
           <span className="lang-toggle">{languageLink}</span>
-          {/* The signed-in admin: opens the admin settings */}
-          {admin && <a className="admin-chip" href={`/admin/settings?lang=${locale}`} aria-label={`${labels.adminSettings}: ${admin.name}`} title={`${admin.name} · ${labels.adminSettings}`}>
-            <AdminAvatar admin={admin} />
-          </a>}
+          {admin && <span className="header-divider" aria-hidden="true" />}
+          {adminLink}
           <span className="header-divider" aria-hidden="true" />
           <button className="icon-button search-toggle" type="button" onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }} aria-label={labels.searchLabel} aria-expanded={searchOpen} aria-controls="site-search">
             {searchOpen ? <X size={20} /> : <Search size={20} />}
@@ -707,16 +711,14 @@ export default function HomeExperience({
               </a>
             );
           })}
-          {/* In the burger, the admin sits with the contacts, as in the header */}
-          {admin && <a className="menu-drawer-admin" href={`/admin/settings?lang=${locale}`} onClick={() => setMenuOpen(false)}>
-            <AdminAvatar admin={admin} />
-            <span><strong>{admin.name}</strong><small>{labels.adminRole} · {labels.adminSettings}</small></span>
-            <ArrowRight size={17} aria-hidden="true" />
-          </a>}
           {/* Phones: the language switch lives here instead of the navbar, as one more line named after the other language */}
           <a className="menu-drawer-lang" href={otherLanguage.href} hrefLang={otherLanguage.hrefLang} aria-label={`${labels.languageLabel}: ${otherLanguage.name}`}>
             <Languages size={19} aria-hidden="true" />{otherLanguage.name}
           </a>
+          {/* The signed-in admin's link, a line like the language switch above it */}
+          {admin && <a className="menu-drawer-lang" href={`/admin/settings?lang=${locale}`} onClick={() => setMenuOpen(false)}>
+            <User size={19} aria-hidden="true" />{labels.adminNav}
+          </a>}
           <span className="menu-drawer-mountains" aria-hidden="true" />
         </nav>
       </>}
@@ -799,7 +801,7 @@ export default function HomeExperience({
           <RowTrack labels={labels} key={eventTab}>
             {listedEvents.map((item) => (
               // The tournaments page's card: the tournament's photo, then its dates, title, place and prize or winner
-              <div className="row-card tn-row-card" key={item.id}><TournamentCard item={item} locale={locale} isNext={item.id === upcoming[0]?.id} /></div>
+              <div className="row-card tn-row-card" key={item.id}><TournamentCard item={item} locale={locale} /></div>
             ))}
           </RowTrack>
           {!listedEvents.length && <p className="empty-note row-empty">{locale === "ky" ? "Азырынча маалымат жок." : "Пока нет данных."}</p>}
@@ -872,7 +874,7 @@ export default function HomeExperience({
       />}
 
       {section === "calendar" && !tournamentPage && <TournamentsPage locale={locale} settings={settings} tournaments={tournaments} />}
-      {tournamentPage && <TournamentDetail item={tournamentPage} locale={locale} isNext={tournamentPage.id === upcoming[0]?.id} others={otherTournaments} />}
+      {tournamentPage && <TournamentDetail item={tournamentPage} locale={locale} others={otherTournaments} />}
 
       {article && <ArticleDetail article={article} locale={locale} others={otherArticles} />}
 
@@ -910,10 +912,13 @@ export default function HomeExperience({
 
       {section === "rules" && <RulesPage locale={locale} settings={settings} rules={rules} />}
 
-      {horsePage && <HorsePage horse={horsePage} locale={locale} price={moneyLabel(horsePage.price, locale, labels.som)}
-        contacts={{ phone: settings.contactPhone, email: settings.contactEmail, social: settings.socialUrl }} />}
+      {horsePage && <HorsePage horse={horsePage} recommended={recommendedHorses} locale={locale} price={(value) => moneyLabel(value, locale, labels.som)}
+        contacts={marketContacts} />}
 
-      {section === "horses" && !horsePage && <>
+      {equipmentPage && <EquipmentPage item={equipmentPage} recommended={recommendedEquipment} locale={locale} price={(value) => moneyLabel(value, locale, labels.som)}
+        contacts={marketContacts} />}
+
+      {section === "horses" && !horseId && <>
         <div className="hero-shell">
         <div className="hero-rail" aria-hidden="true"><span className="hero-rail-pattern" /></div>
         <section className="market-hero page-hero bazaar-hero">
@@ -935,8 +940,7 @@ export default function HomeExperience({
         {/* The catalogue: horses and riders' equipment, with the search panel above them */}
         <div className="catalog-band">
           <section className="horses-section section-wrap" id="catalog">
-            <BazaarCatalog horses={horses} categories={categories} locale={locale} orderSeed={orderSeed} price={(value) => moneyLabel(value, locale, labels.som)}
-              contacts={{ phone: settings.contactPhone, email: settings.contactEmail, social: settings.socialUrl }} />
+            <BazaarCatalog horses={horses} categories={categories} locale={locale} orderSeed={orderSeed} price={(value) => moneyLabel(value, locale, labels.som)} />
           </section>
         </div>
       </>}

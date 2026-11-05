@@ -13,7 +13,7 @@ const order = [
   "adminAccount", "siteSettings", "newsArticle", "tournament", "player", "ruleSection",
   "horseCategory", "horseListing", "federationMember", "aboutPhoto", "historyMilestone",
 ];
-const dateFields = new Set(["createdAt", "updatedAt", "publishedAt", "startsAt", "endsAt", "sessionExpiresAt"]);
+const dateFields = new Set(["createdAt", "updatedAt", "publishedAt", "startsAt", "endsAt"]);
 
 function revive(row) {
   return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, dateFields.has(key) && value ? new Date(value) : value]));
@@ -30,7 +30,11 @@ async function main() {
 
   await prisma.$transaction(order.map((model) => {
     // Sessions from the old database are not carried over: the admin signs in again.
-    const rows = (data[model] ?? []).map(revive).map((row) => model === "adminAccount" ? { ...row, sessionTokenHash: null, sessionExpiresAt: null } : row);
+    const rows = (data[model] ?? []).map(revive).map((row) => {
+      // Exports from before sessions had their own table
+      if (model === "adminAccount") { delete row.sessionTokenHash; delete row.sessionExpiresAt; }
+      return row;
+    });
     return prisma[model].createMany({ data: rows });
   }));
   console.log(order.map((model) => `${model}: ${(data[model] ?? []).length}`).join("\n"));
